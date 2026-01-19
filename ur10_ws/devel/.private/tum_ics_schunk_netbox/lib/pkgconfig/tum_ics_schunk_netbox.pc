@@ -1,0 +1,8 @@
+prefix=/home/msbrdm_student/ros/workspaces/ur10_ws/devel/.private/tum_ics_schunk_netbox
+
+Name: tum_ics_schunk_netbox
+Description: Description of tum_ics_schunk_netbox
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib -ltum_ics_schunk_netbox
+Requires: geometry_msgs message_generation roscpp std_msgs std_srvs

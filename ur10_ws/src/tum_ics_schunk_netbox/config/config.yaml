@@ -1,0 +1,14 @@
+## config.yaml
+# config file for Schunk Net Box force torque sensor
+
+netbox_ip: 192.168.1.1 
+
+frame_id: ft_sensor_link
+frequency: 500.0 
+filter_cutoff: 100.0
+
+deadzone:
+  f_upper: 1.5
+  f_lower: -0.5
+  t_upper: 0.1
+  t_lower: -0.1

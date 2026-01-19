@@ -1,0 +1,2 @@
+set(tum_ics_lacquey_gripper_msgs_MESSAGE_FILES "/home/msbrdm_student/ros/workspaces/ur10_ws/src/tum_ics_lacquey_gripper/tum_ics_lacquey_gripper_msgs/msg/GripperState.msg")
+set(tum_ics_lacquey_gripper_msgs_SERVICE_FILES "/home/msbrdm_student/ros/workspaces/ur10_ws/src/tum_ics_lacquey_gripper/tum_ics_lacquey_gripper_msgs/srv/setGripperState.srv;/home/msbrdm_student/ros/workspaces/ur10_ws/src/tum_ics_lacquey_gripper/tum_ics_lacquey_gripper_msgs/srv/getGripperState.srv")

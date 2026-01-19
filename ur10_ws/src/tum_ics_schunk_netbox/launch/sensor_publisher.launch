@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="IP_ADDRESS" default="192.168.1.1"/>
+  <arg name="UPDATE_RATE" default="200"/>
+  
+  <group ns="schunk_netbox">
+ 
+    <node name="schunk_netbox" 
+          pkg="tum_ics_schunk_netbox" 
+          type="minimal_node" 
+          args="$(arg IP_ADDRESS) $(arg UPDATE_RATE)" 
+          output="screen" />
+          
+  </group>
+
+</launch>

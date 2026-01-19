@@ -1,0 +1,1 @@
+/home/msbrdm_student/ros/workspaces/ur10_ws/devel/.private/tum_ics_schunk_netbox/lib/pkgconfig/tum_ics_schunk_netbox.pc

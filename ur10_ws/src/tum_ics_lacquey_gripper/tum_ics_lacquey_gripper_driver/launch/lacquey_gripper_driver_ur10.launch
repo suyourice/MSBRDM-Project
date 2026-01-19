@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="ARM" default="std"/>
+  <arg name="PC_IP_ADDR" default="192.168.1.3"/>
+  <arg name="ROBOT_IP_ADDR" default="192.168.1.10"/>
+  <arg name="GRIPPER_PORT" default="50003"/>
+  <arg name="GRIPPER_PREFIX" default="ursa_"/>
+
+  <param name="realRobot" value="true" />
+
+  <node name="gripper_driver" 
+  	pkg="tum_ics_lacquey_gripper_driver" 
+  	type="lacquey_gripper_driver" 
+  	args="$(arg ARM) $(arg PC_IP_ADDR) $(arg ROBOT_IP_ADDR) $(arg GRIPPER_PORT) $(arg GRIPPER_PREFIX)" output="screen">
+    
+  <rosparam file="$(find tum_ics_lacquey_gripper_driver)/launch/configs/namespacePrefixesUr10.yaml" command="load"/>
+    
+
+  </node>
+	
+</launch>

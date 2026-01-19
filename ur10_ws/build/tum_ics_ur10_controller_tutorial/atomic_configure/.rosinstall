@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/msbrdm_student/ros/workspaces/ur10_ws/devel/.private/tum_ics_ur10_controller_tutorial/setup.sh

@@ -1,0 +1,4 @@
+# set gripper state
+string newState
+---
+bool ok

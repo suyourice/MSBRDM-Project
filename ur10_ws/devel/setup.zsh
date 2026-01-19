@@ -1,0 +1,1 @@
+/home/msbrdm_student/ros/workspaces/ur10_ws/devel/.private/catkin_tools_prebuild/setup.zsh
