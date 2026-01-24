@@ -1,5 +1,0 @@
-Symlinking /home/msbrdm_student/ros/workspaces/ur10_ws/devel/lib/libtum_ics_lacquey_gripper_driver.so
-Symlinking /home/msbrdm_student/ros/workspaces/ur10_ws/devel/lib/pkgconfig/tum_ics_lacquey_gripper_driver.pc
-Symlinking /home/msbrdm_student/ros/workspaces/ur10_ws/devel/lib/tum_ics_lacquey_gripper_driver/lacquey_gripper_driver
-Symlinking /home/msbrdm_student/ros/workspaces/ur10_ws/devel/share/tum_ics_lacquey_gripper_driver/cmake/tum_ics_lacquey_gripper_driverConfig-version.cmake
-Symlinking /home/msbrdm_student/ros/workspaces/ur10_ws/devel/share/tum_ics_lacquey_gripper_driver/cmake/tum_ics_lacquey_gripper_driverConfig.cmake

@@ -1,5 +1,0 @@
-Symlinking /home/msbrdm_student/ros/workspaces/ur10_ws/devel/lib/libmy_robot_control_lli.so
-Symlinking /home/msbrdm_student/ros/workspaces/ur10_ws/devel/lib/pkgconfig/tum_ics_ur10_controller_tutorial.pc
-Symlinking /home/msbrdm_student/ros/workspaces/ur10_ws/devel/lib/tum_ics_ur10_controller_tutorial/simple_effort_controller_node
-Symlinking /home/msbrdm_student/ros/workspaces/ur10_ws/devel/share/tum_ics_ur10_controller_tutorial/cmake/tum_ics_ur10_controller_tutorialConfig-version.cmake
-Symlinking /home/msbrdm_student/ros/workspaces/ur10_ws/devel/share/tum_ics_ur10_controller_tutorial/cmake/tum_ics_ur10_controller_tutorialConfig.cmake

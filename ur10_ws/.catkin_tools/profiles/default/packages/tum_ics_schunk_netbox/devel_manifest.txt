@@ -1,6 +1,0 @@
-tum_ics_schunk_netbox
-/home/msbrdm_student/ros/workspaces/ur10_ws/devel/.private/tum_ics_schunk_netbox/cmake.lock /home/msbrdm_student/ros/workspaces/ur10_ws/devel/./cmake.lock
-/home/msbrdm_student/ros/workspaces/ur10_ws/devel/.private/tum_ics_schunk_netbox/lib/pkgconfig/tum_ics_schunk_netbox.pc /home/msbrdm_student/ros/workspaces/ur10_ws/devel/lib/pkgconfig/tum_ics_schunk_netbox.pc
-/home/msbrdm_student/ros/workspaces/ur10_ws/devel/.private/tum_ics_schunk_netbox/lib/tum_ics_schunk_netbox/minimal_node /home/msbrdm_student/ros/workspaces/ur10_ws/devel/lib/tum_ics_schunk_netbox/minimal_node
-/home/msbrdm_student/ros/workspaces/ur10_ws/devel/.private/tum_ics_schunk_netbox/share/tum_ics_schunk_netbox/cmake/tum_ics_schunk_netboxConfig.cmake /home/msbrdm_student/ros/workspaces/ur10_ws/devel/share/tum_ics_schunk_netbox/cmake/tum_ics_schunk_netboxConfig.cmake
-/home/msbrdm_student/ros/workspaces/ur10_ws/devel/.private/tum_ics_schunk_netbox/share/tum_ics_schunk_netbox/cmake/tum_ics_schunk_netboxConfig-version.cmake /home/msbrdm_student/ros/workspaces/ur10_ws/devel/share/tum_ics_schunk_netbox/cmake/tum_ics_schunk_netboxConfig-version.cmake

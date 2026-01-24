@@ -1,8 +1,0 @@
-prefix=/home/msbrdm_student/ros/workspaces/ur10_ws/install
-
-Name: tum_ics_lacquey_gripper_driver
-Description: Description of tum_ics_lacquey_gripper_driver
-Version: 0.0.0
-Cflags: -I${prefix}/include
-Libs: -L${prefix}/lib 
-Requires: roscpp tum_ics_lacquey_gripper_msgs tum_ics_ur_robot_msgs

@@ -1,1 +1,0 @@
-/home/msbrdm_student/ros/workspaces/ur10_ws/devel/.private/tum_ics_lacquey_gripper_msgs/share/common-lisp/ros/tum_ics_lacquey_gripper_msgs/msg/GripperState.lisp

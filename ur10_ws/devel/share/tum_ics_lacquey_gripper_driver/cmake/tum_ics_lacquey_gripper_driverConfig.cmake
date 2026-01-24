@@ -1,1 +1,0 @@
-/home/msbrdm_student/ros/workspaces/ur10_ws/devel/.private/tum_ics_lacquey_gripper_driver/share/tum_ics_lacquey_gripper_driver/cmake/tum_ics_lacquey_gripper_driverConfig.cmake

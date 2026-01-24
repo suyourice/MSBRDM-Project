@@ -1,6 +1,0 @@
-devel_space: /home/msbrdm_student/ros/workspaces/ur10_ws/devel
-install: false
-install_space: /home/msbrdm_student/ros/workspaces/ur10_ws/install
-profile: default
-source_space: /home/msbrdm_student/ros/workspaces/ur10_ws/src
-workspace: /home/msbrdm_student/ros/workspaces/ur10_ws

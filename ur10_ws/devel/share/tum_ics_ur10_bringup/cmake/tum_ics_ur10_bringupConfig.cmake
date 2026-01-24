@@ -1,1 +1,0 @@
-/home/msbrdm_student/ros/workspaces/ur10_ws/devel/.private/tum_ics_ur10_bringup/share/tum_ics_ur10_bringup/cmake/tum_ics_ur10_bringupConfig.cmake

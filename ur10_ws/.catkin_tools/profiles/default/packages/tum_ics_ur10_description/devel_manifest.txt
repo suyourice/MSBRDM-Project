@@ -1,5 +1,0 @@
-tum_ics_ur10_robot/tum_ics_ur10_description
-/home/msbrdm_student/ros/workspaces/ur10_ws/devel/.private/tum_ics_ur10_description/cmake.lock /home/msbrdm_student/ros/workspaces/ur10_ws/devel/./cmake.lock
-/home/msbrdm_student/ros/workspaces/ur10_ws/devel/.private/tum_ics_ur10_description/lib/pkgconfig/tum_ics_ur10_description.pc /home/msbrdm_student/ros/workspaces/ur10_ws/devel/lib/pkgconfig/tum_ics_ur10_description.pc
-/home/msbrdm_student/ros/workspaces/ur10_ws/devel/.private/tum_ics_ur10_description/share/tum_ics_ur10_description/cmake/tum_ics_ur10_descriptionConfig-version.cmake /home/msbrdm_student/ros/workspaces/ur10_ws/devel/share/tum_ics_ur10_description/cmake/tum_ics_ur10_descriptionConfig-version.cmake
-/home/msbrdm_student/ros/workspaces/ur10_ws/devel/.private/tum_ics_ur10_description/share/tum_ics_ur10_description/cmake/tum_ics_ur10_descriptionConfig.cmake /home/msbrdm_student/ros/workspaces/ur10_ws/devel/share/tum_ics_ur10_description/cmake/tum_ics_ur10_descriptionConfig.cmake

@@ -1,1 +1,0 @@
-/home/msbrdm_student/ros/workspaces/ur10_ws/devel/./cmake.lock 23
