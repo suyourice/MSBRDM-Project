@@ -1,0 +1,43 @@
+# ============================
+# ROS / catkin_tools workspace
+# ============================
+
+# Catkin build & devel spaces
+ur10_ws/build/
+ur10_ws/devel/
+ur10_ws/logs/
+
+# Catkin tools metadata
+ur10_ws/.catkin_tools/
+
+# Catkin generated installspace files
+**/catkin_generated/
+**/atomic_configure/
+**/_setup_util.py
+**/.rosinstall
+
+# ============================
+# Python / CMake / Cache
+# ============================
+__pycache__/
+*.pyc
+*.pyo
+
+CMakeCache.txt
+CMakeFiles/
+CTestTestfile.cmake
+cmake_install.cmake
+
+# ============================
+# System / Editor / Misc
+# ============================
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# VSCode
+.vscode/
+
+# Mac / Linux OS metadata
+.DS_Store
