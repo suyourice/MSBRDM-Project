@@ -1,0 +1,31 @@
+<!-- ArUco Marker Detection Launch File -->
+<launch>
+  <!-- Arguments -->
+  <arg name="camera_topic" default="/droidcam/image/compressed" />
+  <arg name="camera_info_topic" default="/droidcam/camera_info" />
+  <arg name="camera_frame" default="camera_optical_frame" />
+  <arg name="base_frame" default="base_link" />
+  <arg name="aruco_dict" default="DICT_4X4_50" />
+  <arg name="marker_size" default="0.05" />
+  <arg name="use_compressed" default="true" />
+  <arg name="publish_visualization" default="true" />
+  <arg name="detect_rate" default="10.0" />
+
+  <!-- ArUco Detector Node -->
+  <node name="aruco_detector_node" pkg="aruco_detection" type="aruco_detector_node.py" output="screen">
+    <param name="camera_frame" value="$(arg camera_frame)" />
+    <param name="base_frame" value="$(arg base_frame)" />
+    <param name="aruco_dict" value="$(arg aruco_dict)" />
+    <param name="marker_size" value="$(arg marker_size)" />
+    <param name="use_compressed" value="$(arg use_compressed)" />
+    <param name="publish_visualization" value="$(arg publish_visualization)" />
+    <param name="detect_rate" value="$(arg detect_rate)" />
+
+    <!-- Remap camera topics -->
+    <remap from="camera/image/compressed" to="$(arg camera_topic)" />
+    <remap from="camera/camera_info" to="$(arg camera_info_topic)" />
+  </node>
+
+  <!-- Optional: RViz for visualization -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find aruco_detection)/config/aruco_detection.rviz" if="$(arg publish_visualization)" />
+</launch>

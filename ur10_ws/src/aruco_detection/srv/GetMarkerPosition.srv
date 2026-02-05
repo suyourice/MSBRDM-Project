@@ -1,0 +1,7 @@
+# Request: Get 3D position of an ArUco marker ID in the robot's base frame
+int32 marker_id        # ArUco marker ID to query
+---
+# Response
+bool success           # True if marker is detected and position computed
+geometry_msgs/Point position  # 3D position in robot base frame
+string message         # Status or error message
