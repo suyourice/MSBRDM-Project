@@ -2,6 +2,9 @@
 # ROS / catkin_tools workspace
 # ============================
 
+# catkin_tools local metadata (repo root)
+.catkin_tools/
+
 # Catkin build & devel spaces
 ur10_ws/build/
 ur10_ws/devel/
