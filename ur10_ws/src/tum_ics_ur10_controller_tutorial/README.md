@@ -179,10 +179,11 @@ where singular values are damped: σ_inv = σ / (σ² + λ²)
 - [x] Configuration file (joint_pd.yaml)
 - [x] Test node (joint_pd_test_node)
 
-### Phase 3: Cartesian PDG Controller 🚧
-- [ ] PDG controller implementation
-- [ ] Cartesian error computation
-- [ ] Trajectory testing
+### Phase 3: Cartesian PDG Controller ✅
+- [x] CartesianPDGController implementation
+- [x] Cartesian error computation (position + angle-axis orientation)
+- [x] Configuration file (cartesian_pdg.yaml)
+- [x] Test node (cartesian_pdg_test_node)
 
 ### Phase 4-8: Advanced Controllers ⏳
 - [ ] Gripper controller

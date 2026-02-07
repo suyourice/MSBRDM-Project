@@ -1,0 +1,31 @@
+# Cartesian PDG Controller Configuration
+# Control law: q̇_r = J⁺(ẋ_d + Kp·(x_d - x)), τ = -Kd·(q̇ - q̇_r)
+
+cartesian_pdg_controller:
+  # Position proportional gains (X, Y, Z)
+  # Units: 1/s (velocity feedback per meter error)
+  Kp_pos: [100.0, 100.0, 100.0]
+
+  # Orientation proportional gains (roll, pitch, yaw)
+  # Units: 1/s (angular velocity feedback per radian error)
+  Kp_ori: [50.0, 50.0, 50.0]
+
+  # Joint space derivative gains
+  # Units: Nms/rad
+  Kd_q: [15.0, 15.0, 15.0, 10.0, 10.0, 10.0]
+
+  # Maximum Cartesian velocity
+  # Units: m/s (rad/s for orientation)
+  max_velocity: 0.5
+
+  # Maximum joint torque
+  # Units: Nm
+  max_torque: 50.0
+
+  # Damping factor for Jacobian pseudo-inverse
+  # Prevents singularity issues
+  damping_factor: 0.01
+
+  # Tolerances for "at target" check
+  position_tolerance: 0.01    # m
+  orientation_tolerance: 0.05 # rad (~2.9 degrees)
