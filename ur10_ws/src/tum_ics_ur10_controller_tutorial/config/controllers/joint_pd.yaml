@@ -1,0 +1,19 @@
+# Joint PD Controller Configuration
+# Control law: τ = Kp·(q_d - q) - Kd·q̇
+
+joint_pd_controller:
+  # Proportional gains (one per joint)
+  # Units: Nm/rad
+  Kp: [150.0, 150.0, 150.0, 100.0, 100.0, 100.0]
+
+  # Derivative gains (one per joint)
+  # Units: Nms/rad
+  Kd: [15.0, 15.0, 15.0, 10.0, 10.0, 10.0]
+
+  # Maximum torque per joint
+  # Units: Nm
+  max_torque: 50.0
+
+  # Position tolerance for "at target" check
+  # Units: rad
+  position_tolerance: 0.05  # ~2.9 degrees

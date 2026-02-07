@@ -83,6 +83,9 @@ add_library(my_robot_control_lli
    # Common utilities
    src/common/math_utils.cpp
 
+   # Joint space controllers
+   src/joint/joint_pd_controller.cpp
+
    # Old controllers (moved to _old/)
    # src/simple_effort_controller.cpp
    # src/operational_space_controller.cpp
@@ -112,9 +115,9 @@ add_dependencies(my_robot_control_lli
 # Note: Application nodes will be added as controllers are implemented
 # Old nodes moved to _old/
 set(APP_TARGETS
+  joint_pd_test_node
   # simple_effort_controller_node (moved to _old/)
   # operational_space_controller_node (moved to _old/)
-  # New nodes will be added here as implemented
 )
 
 foreach(target ${APP_TARGETS})

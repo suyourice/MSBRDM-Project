@@ -174,9 +174,10 @@ where singular values are damped: σ_inv = σ / (σ² + λ²)
 - [x] Type definitions
 - [x] Directory structure
 
-### Phase 2: Joint Controller 🚧
-- [ ] Joint PD controller implementation
-- [ ] Test with home position
+### Phase 2: Joint Controller ✅
+- [x] Joint PD controller implementation
+- [x] Configuration file (joint_pd.yaml)
+- [x] Test node (joint_pd_test_node)
 
 ### Phase 3: Cartesian PDG Controller 🚧
 - [ ] PDG controller implementation
