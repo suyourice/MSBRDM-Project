@@ -1,0 +1,27 @@
+# Lacquey Gripper Configuration
+
+gripper:
+  # Maximum open width
+  # Units: meters
+  open_width: 0.08
+
+  # Minimum close width
+  # Units: meters
+  close_width: 0.0
+
+  # Default grasping force
+  # Units: Newtons
+  grasp_force: 20.0
+
+  # Grasp width for peg (object diameter ~20mm)
+  # Units: meters
+  grasp_width: 0.025
+
+  # ROS topics
+  width_topic: "/lacquey_gripper/width_cmd"
+  force_topic: "/lacquey_gripper/force_cmd"
+  state_topic: "/lacquey_gripper/state"
+
+  # Tolerance for "at target" check
+  # Units: meters
+  position_tolerance: 0.005  # 5mm

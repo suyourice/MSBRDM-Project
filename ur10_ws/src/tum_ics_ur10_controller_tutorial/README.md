@@ -185,8 +185,12 @@ where singular values are damped: σ_inv = σ / (σ² + λ²)
 - [x] Configuration file (cartesian_pdg.yaml)
 - [x] Test node (cartesian_pdg_test_node)
 
-### Phase 4-8: Advanced Controllers ⏳
-- [ ] Gripper controller
+### Phase 4: Gripper Controller ✅
+- [x] LacqueyGripperController implementation
+- [x] ROS topic interface (open/close/grasp)
+- [x] Configuration file (gripper.yaml)
+
+### Phase 5-8: Advanced Controllers ⏳
 - [ ] F/T sensor interface
 - [ ] Admittance controller
 - [ ] Hybrid insertion controller

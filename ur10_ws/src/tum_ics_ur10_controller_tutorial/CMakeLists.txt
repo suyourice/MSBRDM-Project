@@ -90,6 +90,9 @@ add_library(my_robot_control_lli
    src/cartesian/cartesian_error.cpp
    src/cartesian/cartesian_pdg_controller.cpp
 
+   # Gripper interface
+   src/gripper/lacquey_gripper_controller.cpp
+
    # Old controllers (moved to _old/)
    # src/simple_effort_controller.cpp
    # src/operational_space_controller.cpp
