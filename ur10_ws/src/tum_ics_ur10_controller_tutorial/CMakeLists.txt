@@ -98,6 +98,9 @@ add_library(my_robot_control_lli
    # Sensor interfaces
    src/sensors/ft_sensor_interface.cpp
 
+   # Finite state machines
+   src/fsm/peg_in_hole_fsm.cpp
+
    # Old controllers (moved to _old/)
    # src/simple_effort_controller.cpp
    # src/operational_space_controller.cpp
@@ -129,6 +132,7 @@ add_dependencies(my_robot_control_lli
 set(APP_TARGETS
   joint_pd_test_node
   cartesian_pdg_test_node
+  peg_in_hole_fsm_node
   # simple_effort_controller_node (moved to _old/)
   # operational_space_controller_node (moved to _old/)
 )

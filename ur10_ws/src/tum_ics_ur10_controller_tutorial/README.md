@@ -210,11 +210,14 @@ where singular values are damped: σ_inv = σ / (σ² + λ²)
 - [x] Success detection (z_depth + force_drop)
 - [x] Configuration file (hybrid_insertion.yaml)
 
-### Phase 8: FSM (Final) ⏳
-- [ ] Peg-in-hole state machine
-- [ ] State transitions and sequencing
-- [ ] Retry logic
-- [ ] Integration with all controllers
+### Phase 8: FSM (Final) ✅
+- [x] Peg-in-hole state machine
+- [x] State transitions and sequencing
+- [x] Retry logic
+- [x] Integration with all controllers
+- [x] FSM application node (peg_in_hole_fsm_node)
+- [x] Launch file (peg_in_hole.launch)
+- [x] Configuration file (peg_in_hole_fsm.yaml)
 
 ## Contributing
 

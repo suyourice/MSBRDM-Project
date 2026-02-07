@@ -1,0 +1,37 @@
+# Peg-in-Hole Finite State Machine Configuration
+
+peg_in_hole_fsm:
+  # Home position (joint angles in degrees)
+  # Default: robot's qHome() if not specified
+  q_home: [0, -90, 90, -90, -90, 0]
+
+  # Peg position (x, y, z in meters)
+  # Example: peg on table
+  p_peg: [0.5, 0.2, 0.15]
+
+  # Hole position (x, y, z in meters)
+  # Example: hole on opposite side of table
+  p_hole: [0.5, -0.2, 0.15]
+
+  # Peg orientation (roll, pitch, yaw in degrees)
+  # Used for both peg grasping and hole insertion
+  peg_orientation: [180, 0, 0]  # Gripper pointing down
+
+  # Retry logic
+  max_retries: 3
+
+  # ArUco marker detection (if available)
+  use_aruco: false
+
+  # State timeouts (seconds)
+  # These are automatically set in code, but can be overridden here
+  # timeouts:
+  #   HOME: 10.0
+  #   OPEN_GRIPPER: 2.0
+  #   MOVE_TO_PEG: 15.0
+  #   DESCEND_TO_PEG: 10.0
+  #   CLOSE_GRIPPER: 2.0
+  #   LIFT_PEG: 5.0
+  #   MOVE_ABOVE_HOLE: 15.0
+  #   ALIGN_ORIENTATION: 5.0
+  #   CIRCULAR_INSERTION: 30.0

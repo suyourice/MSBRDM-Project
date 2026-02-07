@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <!-- UR10 settings -->
+  <arg name="CONFIG_FILE_PATH" default="$(find tum_ics_ur10_controller_tutorial)/launch/configs/configUR10.ini"/>
+
+  <!-- The peg-in-hole FSM controller -->
+  <node name="peg_in_hole_fsm" pkg="tum_ics_ur10_controller_tutorial" type="peg_in_hole_fsm_node" args="$(arg CONFIG_FILE_PATH)" output="screen">
+
+    <!-- FSM configuration -->
+    <rosparam file="$(find tum_ics_ur10_controller_tutorial)/config/peg_in_hole_fsm.yaml" command="load" />
+
+    <!-- Sub-controller configurations -->
+    <rosparam file="$(find tum_ics_ur10_controller_tutorial)/config/controllers/joint_pd.yaml" command="load" />
+    <rosparam file="$(find tum_ics_ur10_controller_tutorial)/config/controllers/cartesian_pdg.yaml" command="load" />
+    <rosparam file="$(find tum_ics_ur10_controller_tutorial)/config/controllers/hybrid_insertion.yaml" command="load" />
+
+    <!-- Gripper configuration -->
+    <rosparam file="$(find tum_ics_ur10_controller_tutorial)/config/gripper.yaml" command="load" />
+
+    <!-- Sensor configuration -->
+    <rosparam file="$(find tum_ics_ur10_controller_tutorial)/config/sensors.yaml" command="load" />
+
+  </node>
+
+</launch>
