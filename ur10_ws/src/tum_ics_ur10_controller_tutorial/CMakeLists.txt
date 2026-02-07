@@ -93,6 +93,9 @@ add_library(my_robot_control_lli
    # Gripper interface
    src/gripper/lacquey_gripper_controller.cpp
 
+   # Sensor interfaces
+   src/sensors/ft_sensor_interface.cpp
+
    # Old controllers (moved to _old/)
    # src/simple_effort_controller.cpp
    # src/operational_space_controller.cpp

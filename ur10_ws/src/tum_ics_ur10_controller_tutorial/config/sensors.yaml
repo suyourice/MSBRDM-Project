@@ -1,0 +1,24 @@
+# Force/Torque Sensor Configuration
+
+ft_sensor:
+  # ROS topic name for F/T sensor data
+  # Message type: geometry_msgs/WrenchStamped
+  # NOTE: Check actual topic name with 'rostopic list' at runtime
+  topic: "/ft_sensor/wrench"
+
+  # Low-pass filter coefficient (exponential moving average)
+  # Range: 0.0 to 1.0
+  #   1.0 = no filtering (use raw measurements)
+  #   0.0 = infinite filtering (no updates)
+  #   0.2 = moderate filtering (recommended)
+  filter_alpha: 0.2
+
+  # Maximum data age for validity check
+  # Units: seconds
+  max_data_age: 0.1
+
+# Alternative topic names (check which one is available):
+# - /ft_sensor/wrench
+# - /wrench
+# - /robotiq_ft_sensor/wrench
+# - /netft/wrench

@@ -190,8 +190,13 @@ where singular values are damped: σ_inv = σ / (σ² + λ²)
 - [x] ROS topic interface (open/close/grasp)
 - [x] Configuration file (gripper.yaml)
 
-### Phase 5-8: Advanced Controllers ⏳
-- [ ] F/T sensor interface
+### Phase 5: F/T Sensor Interface ✅
+- [x] FTSensorInterface implementation
+- [x] Subscribe to WrenchStamped topic
+- [x] Low-pass filtering and bias removal
+- [x] Configuration file (sensors.yaml)
+
+### Phase 6-8: Advanced Controllers ⏳
 - [ ] Admittance controller
 - [ ] Hybrid insertion controller
 - [ ] Peg-in-hole FSM
