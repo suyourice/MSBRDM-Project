@@ -78,8 +78,15 @@ file(GLOB_RECURSE MY_CTRL_INC RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} FOLLOW_SYMLIN
 # Sections Library. Here goes the src code of your controller
 ##############################################################################
 
+# New modular controller library
 add_library(my_robot_control_lli
-   src/simple_effort_controller.cpp
+   # Common utilities
+   src/common/math_utils.cpp
+
+   # Old controllers (moved to _old/)
+   # src/simple_effort_controller.cpp
+   # src/operational_space_controller.cpp
+
    ${MY_CTRL_INC}
 )
 target_link_libraries(my_robot_control_lli
@@ -102,8 +109,12 @@ add_dependencies(my_robot_control_lli
 # Applications. Here goes your applications (using the controller class you defined in the library above)
 ##############################################################################
 
+# Note: Application nodes will be added as controllers are implemented
+# Old nodes moved to _old/
 set(APP_TARGETS
-  simple_effort_controller_node
+  # simple_effort_controller_node (moved to _old/)
+  # operational_space_controller_node (moved to _old/)
+  # New nodes will be added here as implemented
 )
 
 foreach(target ${APP_TARGETS})
