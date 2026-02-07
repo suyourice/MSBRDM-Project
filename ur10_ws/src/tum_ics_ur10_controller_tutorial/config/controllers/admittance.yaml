@@ -1,0 +1,41 @@
+# Admittance Controller Configuration
+# Dynamics: M·Δẍ + D·Δẋ = F_ext (XY plane only)
+
+admittance_controller:
+  # Virtual mass (XY plane)
+  # Units: kg
+  # Lower mass = more compliant (responds faster to force)
+  mass_xy: [0.5, 0.5]
+
+  # Damping (XY plane)
+  # Units: Ns/m
+  # Higher damping = less oscillation
+  damping_xy: [50.0, 50.0]
+
+  # Cartesian position gains (for tracking compliant target)
+  # Units: 1/s
+  Kp_pos: [100.0, 100.0, 100.0]
+
+  # Cartesian orientation gains
+  # Units: 1/s
+  Kp_ori: [50.0, 50.0, 50.0]
+
+  # Joint space damping
+  # Units: Nms/rad
+  Kd_q: [15.0, 15.0, 15.0, 10.0, 10.0, 10.0]
+
+  # Maximum admittance displacement
+  # Units: m
+  # Prevents excessive compliance
+  max_displacement: 0.02  # 20mm
+
+  # Maximum Cartesian velocity
+  # Units: m/s
+  max_velocity: 0.5
+
+  # Maximum joint torque
+  # Units: Nm
+  max_torque: 50.0
+
+  # Jacobian pseudo-inverse damping
+  damping_factor: 0.01

@@ -196,9 +196,14 @@ where singular values are damped: σ_inv = σ / (σ² + λ²)
 - [x] Low-pass filtering and bias removal
 - [x] Configuration file (sensors.yaml)
 
-### Phase 6-8: Advanced Controllers ⏳
-- [ ] Admittance controller
-- [ ] Hybrid insertion controller
+### Phase 6: Admittance Controller ✅
+- [x] AdmittanceController implementation
+- [x] XY-plane force compliance (M·Δẍ + D·Δẋ = F_ext)
+- [x] F/T sensor integration
+- [x] Configuration file (admittance.yaml)
+
+### Phase 7-8: Final Controllers ⏳
+- [ ] Hybrid insertion controller (Z position + XY admittance + circular)
 - [ ] Peg-in-hole FSM
 
 ## Contributing
