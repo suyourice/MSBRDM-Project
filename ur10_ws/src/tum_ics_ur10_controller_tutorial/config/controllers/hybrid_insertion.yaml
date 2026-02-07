@@ -1,0 +1,44 @@
+# Hybrid Insertion Controller Configuration
+# Combines: Z position + XY circular motion + XY admittance
+
+hybrid_insertion_controller:
+  # Circular search pattern
+  # Units: meters
+  radius: 0.003  # 3mm search radius
+
+  # Angular velocity of circular motion
+  # Units: rad/s
+  omega: 0.5
+
+  # Insertion descent velocity (Z-axis)
+  # Units: m/s
+  v_insert: 0.002  # 2mm/s
+
+  # Target insertion depth
+  # Units: meters
+  z_target: 0.025  # 25mm
+
+  # Admittance parameters (XY plane only)
+  # Virtual mass
+  # Units: kg
+  mass_xy: [0.5, 0.5]
+
+  # Damping
+  # Units: Ns/m
+  damping_xy: [50.0, 50.0]
+
+  # Success criteria
+  # Force drop threshold (indicates successful insertion)
+  # Units: Newtons
+  force_drop_threshold: 3.0
+
+  # Cartesian gains
+  Kp_pos: [100.0, 100.0, 100.0]
+  Kp_ori: [50.0, 50.0, 50.0]
+  Kd_q: [15.0, 15.0, 15.0, 10.0, 10.0, 10.0]
+
+  # Limits
+  max_displacement: 0.02  # Maximum admittance displacement (m)
+  max_velocity: 0.5       # Maximum Cartesian velocity (m/s)
+  max_torque: 50.0        # Maximum joint torque (Nm)
+  damping_factor: 0.01    # Jacobian pseudo-inverse damping

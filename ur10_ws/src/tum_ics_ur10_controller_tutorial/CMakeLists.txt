@@ -90,6 +90,7 @@ add_library(my_robot_control_lli
    src/cartesian/cartesian_error.cpp
    src/cartesian/cartesian_pdg_controller.cpp
    src/cartesian/admittance_controller.cpp
+   src/cartesian/hybrid_insertion_controller.cpp
 
    # Gripper interface
    src/gripper/lacquey_gripper_controller.cpp

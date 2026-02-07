@@ -202,9 +202,19 @@ where singular values are damped: σ_inv = σ / (σ² + λ²)
 - [x] F/T sensor integration
 - [x] Configuration file (admittance.yaml)
 
-### Phase 7-8: Final Controllers ⏳
-- [ ] Hybrid insertion controller (Z position + XY admittance + circular)
-- [ ] Peg-in-hole FSM
+### Phase 7: Hybrid Insertion Controller ✅
+- [x] HybridInsertionController implementation
+- [x] Z-axis position control (constant descent)
+- [x] XY-plane circular motion (spiral search)
+- [x] XY-plane admittance (force compliance)
+- [x] Success detection (z_depth + force_drop)
+- [x] Configuration file (hybrid_insertion.yaml)
+
+### Phase 8: FSM (Final) ⏳
+- [ ] Peg-in-hole state machine
+- [ ] State transitions and sequencing
+- [ ] Retry logic
+- [ ] Integration with all controllers
 
 ## Contributing
 
