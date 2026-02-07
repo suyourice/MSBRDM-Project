@@ -1,0 +1,53 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <model name="hole">
+
+    <!-- Hole is fixed in the environment -->
+    <static>true</static>
+
+    <link name="link">
+
+      <!-- Pose relative to model frame -->
+      <pose>0 0 0 0 0 0</pose>
+
+      <!-- Collision: this is what peg actually touches -->
+      <collision name="collision">
+        <geometry>
+          <mesh>
+            <uri>file:///root/MSBRDM/MSBRDM-Project/ur10_ws/src/tum_ics_ur10_robot/tum_ics_ur10_simulation_objects/models/hole/meshes/base_slot_cylinder.stl</uri>
+            <scale>0.001 0.001 0.001</scale>
+          </mesh>
+        </geometry>
+
+        <!-- Contact & friction parameters -->
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.6</mu>
+              <mu2>0.6</mu2>
+            </ode>
+          </friction>
+          <contact>
+            <ode>
+              <kp>1000000</kp>
+              <kd>50</kd>
+              <max_vel>0.05</max_vel>
+              <min_depth>0.001</min_depth>
+            </ode>
+          </contact>
+        </surface>
+      </collision>
+
+      <!-- Visual: what you see -->
+      <visual name="visual">
+        <geometry>
+          <cylinder>
+            <radius>0.03</radius>
+            <length>0.02</length>
+          </cylinder>
+        </geometry>
+      </visual>
+
+    </link>
+  </model>
+</sdf>

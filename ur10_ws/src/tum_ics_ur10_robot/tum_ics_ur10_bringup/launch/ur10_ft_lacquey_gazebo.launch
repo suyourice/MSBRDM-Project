@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!-- ================= Arguments ================= -->
+  <arg name="robot_prefix" default="ursa_"/>
+  <arg name="joint_limited" default="false"/>
+
+  <!-- ================= Gazebo ==================== -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch"/>
+
+  <!-- ================= Robot description ========= -->
+  <param name="robot_description"
+         command="$(find xacro)/xacro
+                  $(find tum_ics_ur10_description)/urdf/ur10_robot_ft_lacquey_gazebo.urdf.xacro
+                  prefix:=$(arg robot_prefix)
+                  limited:=$(arg joint_limited)"/>
+
+  <!-- ================= Spawn UR10 ================ -->
+  <node name="spawn_ur10"
+        pkg="gazebo_ros"
+        type="spawn_model"
+        output="screen"
+        args="-urdf -param robot_description -model ur10 -x 0 -y 0 -z 0.0"/>
+
+  <!-- ================================================= -->
+  <!-- Initial joint configuration (CRITICAL)           -->
+  <!-- ================================================= -->
+  <!-- This prevents the arm from collapsing under gravity -->
+  <rosparam command="load"
+            file="$(find tum_ics_ur10_description)/robots/ursa_ur10_zeros.yaml" />
+
+  <!-- ================================================= -->
+  <!-- Joint state publisher (temporary, for posture)    -->
+  <!-- ================================================= -->
+  <node name="joint_state_publisher"
+        pkg="joint_state_publisher"
+        type="joint_state_publisher">
+    <param name="use_gui" value="false"/>
+  </node>
+
+  <!-- ================================================= -->
+  <!-- Robot state publisher                             -->
+  <!-- ================================================= -->
+  <node name="robot_state_publisher"
+        pkg="robot_state_publisher"
+        type="robot_state_publisher"/>
+
+</launch>
