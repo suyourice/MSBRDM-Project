@@ -5,8 +5,11 @@
 namespace tum_ics_ur10_controller_tutorial
 {
 
-JointPDController::JointPDController(double weight, const QString& name)
-  : ControllerBase(weight, name),
+JointPDController::JointPDController(const QString& name, double weight)
+  : ControllerBase(name,
+                   tum_ics_ur_robot_lli::RobotControllers::STANDARD_TYPE,
+                   tum_ics_ur_robot_lli::RobotControllers::JOINT_SPACE,
+                   weight),
     max_torque_(50.0)
 {
 }
@@ -28,8 +31,9 @@ bool JointPDController::init()
 {
   ROS_INFO_STREAM("JointPDController::init()");
 
-  // Get DOF from robot
-  int dof = robot_->getDOF();
+  // DOF will be determined after setQHome() is called
+  // For now, use UR10's 6 DOF as default
+  const int dof = 6;
 
   // Allocate gain matrices
   Kp_ = Eigen::MatrixXd::Zero(dof, dof);
@@ -91,8 +95,8 @@ bool JointPDController::init()
   // Read max torque limit
   nh_.param(ns + "/max_torque", max_torque_, 50.0);
 
-  // Initialize desired position to current home position
-  q_desired_ = robot_->qHome();
+  // Note: q_desired_ will be set later (after setQHome() is called)
+  // For now, initialize to zeros
 
   ROS_INFO_STREAM("JointPDController initialized with DOF=" << dof);
   ROS_INFO_STREAM("Kp diagonal: " << Kp_.diagonal().transpose());
@@ -112,9 +116,9 @@ bool JointPDController::start()
   return true;
 }
 
-Eigen::VectorXd JointPDController::update(
-  const RobotTime& time,
-  const JointState& state)
+Tum::VectorDOFd JointPDController::update(
+  const tum_ics_ur_robot_lli::RobotTime& time,
+  const tum_ics_ur_robot_lli::JointState& state)
 {
   const Eigen::VectorXd& q = state.q;
   const Eigen::VectorXd& qp = state.qp;
@@ -136,6 +140,28 @@ bool JointPDController::stop()
 {
   ROS_INFO_STREAM("JointPDController::stop()");
   return true;
+}
+
+// Implement additional pure virtuals from Controller
+void JointPDController::setQInit(const tum_ics_ur_robot_lli::JointState& qinit)
+{
+  q_init_ = qinit;
+  ROS_INFO_STREAM("JointPDController::setQInit() - stored " << q_init_.q.size() << " joints");
+}
+
+void JointPDController::setQHome(const tum_ics_ur_robot_lli::JointState& qhome)
+{
+  q_home_ = qhome;
+  // Initialize desired position to home position
+  q_desired_ = q_home_.q;
+  ROS_INFO_STREAM("JointPDController::setQHome() - stored " << q_home_.q.size() << " joints");
+  ROS_INFO_STREAM("Home position [rad]: " << q_home_.q.transpose());
+}
+
+void JointPDController::setQPark(const tum_ics_ur_robot_lli::JointState& qpark)
+{
+  q_park_ = qpark;
+  ROS_INFO_STREAM("JointPDController::setQPark() - stored " << q_park_.q.size() << " joints");
 }
 
 } // namespace tum_ics_ur10_controller_tutorial

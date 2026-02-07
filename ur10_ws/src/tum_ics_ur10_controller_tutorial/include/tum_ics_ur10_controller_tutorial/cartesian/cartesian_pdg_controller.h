@@ -1,6 +1,7 @@
 #pragma once
 
 #include <tum_ics_ur10_controller_tutorial/common/controller_base.h>
+#include <tum_ics_ur_robot_lli/Robot/KinematicModel.h>
 #include <ros/ros.h>
 #include <Eigen/Dense>
 
@@ -26,8 +27,8 @@ namespace tum_ics_ur10_controller_tutorial
 class CartesianPDGController : public ControllerBase
 {
 public:
-  CartesianPDGController(double weight = 1.0,
-                         const QString& name = "CartesianPDGController");
+  CartesianPDGController(const QString& name = "CartesianPDGController",
+                         double weight = 1.0);
 
   virtual ~CartesianPDGController() = default;
 
@@ -67,10 +68,16 @@ public:
    */
   bool isAtTarget(double pos_tol = 0.01, double ori_tol = 0.05) const;
 
+  // Additional pure virtuals from Controller base (public for FSM access)
+  void setQInit(const tum_ics_ur_robot_lli::JointState& qinit) override;
+  void setQHome(const tum_ics_ur_robot_lli::JointState& qhome) override;
+  void setQPark(const tum_ics_ur_robot_lli::JointState& qpark) override;
+
 protected:
   bool init() override;
   bool start() override;
-  Eigen::VectorXd update(const RobotTime& time, const JointState& state) override;
+  Tum::VectorDOFd update(const tum_ics_ur_robot_lli::RobotTime& time,
+                         const tum_ics_ur_robot_lli::JointState& state) override;
   bool stop() override;
 
 private:
@@ -86,6 +93,14 @@ private:
 
   // Current error (for monitoring)
   Eigen::Matrix<double, 6, 1> pose_error_;
+
+  // Kinematic model
+  tum_ics_ur_robot_lli::Robot::KinematicModel* kinematic_model_;
+
+  // Stored robot configurations
+  tum_ics_ur_robot_lli::JointState q_init_;
+  tum_ics_ur_robot_lli::JointState q_home_;
+  tum_ics_ur_robot_lli::JointState q_park_;
 
   // ROS
   ros::NodeHandle nh_;

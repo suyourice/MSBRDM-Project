@@ -2,6 +2,7 @@
 
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
+#include <ros/time.h>
 
 namespace tum_ics_ur10_controller_tutorial
 {
@@ -9,6 +10,7 @@ namespace tum_ics_ur10_controller_tutorial
 // Common type aliases for readability
 using Vector6d = Eigen::Matrix<double, 6, 1>;
 using Matrix6d = Eigen::Matrix<double, 6, 6>;
+using RobotTime = ros::Time;
 
 // Joint state structure
 struct JointState

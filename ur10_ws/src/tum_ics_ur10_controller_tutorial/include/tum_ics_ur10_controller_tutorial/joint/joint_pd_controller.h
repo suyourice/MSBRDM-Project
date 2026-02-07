@@ -20,7 +20,7 @@ namespace tum_ics_ur10_controller_tutorial
 class JointPDController : public ControllerBase
 {
 public:
-  JointPDController(double weight = 1.0, const QString& name = "JointPDController");
+  JointPDController(const QString& name = "JointPDController", double weight = 1.0);
 
   virtual ~JointPDController() = default;
 
@@ -41,10 +41,16 @@ public:
    */
   bool isAtTarget(double tolerance = 0.05) const;
 
+  // Additional pure virtuals from Controller base (public for FSM access)
+  void setQInit(const tum_ics_ur_robot_lli::JointState& qinit) override;
+  void setQHome(const tum_ics_ur_robot_lli::JointState& qhome) override;
+  void setQPark(const tum_ics_ur_robot_lli::JointState& qpark) override;
+
 protected:
   bool init() override;
   bool start() override;
-  Eigen::VectorXd update(const RobotTime& time, const JointState& state) override;
+  Tum::VectorDOFd update(const tum_ics_ur_robot_lli::RobotTime& time,
+                         const tum_ics_ur_robot_lli::JointState& state) override;
   bool stop() override;
 
 private:
@@ -57,6 +63,11 @@ private:
 
   // Current error (for monitoring)
   Eigen::VectorXd q_error_;
+
+  // Stored robot configurations
+  tum_ics_ur_robot_lli::JointState q_init_;
+  tum_ics_ur_robot_lli::JointState q_home_;
+  tum_ics_ur_robot_lli::JointState q_park_;
 
   // ROS node handle
   ros::NodeHandle nh_;

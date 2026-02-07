@@ -1,12 +1,17 @@
 #include <tum_ics_ur10_controller_tutorial/cartesian/admittance_controller.h>
 #include <tum_ics_ur10_controller_tutorial/cartesian/cartesian_error.h>
 #include <tum_ics_ur10_controller_tutorial/common/math_utils.h>
+#include <ros/package.h>
 
 namespace tum_ics_ur10_controller_tutorial
 {
 
-AdmittanceController::AdmittanceController(double weight, const QString& name)
-  : ControllerBase(weight, name),
+AdmittanceController::AdmittanceController(const QString& name, double weight)
+  : ControllerBase(name,
+                   tum_ics_ur_robot_lli::RobotControllers::STANDARD_TYPE,
+                   tum_ics_ur_robot_lli::RobotControllers::CARTESIAN_SPACE,
+                   weight),
+    kinematic_model_(nullptr),
     max_displacement_(0.02),
     max_velocity_(0.5),
     max_torque_(50.0),
@@ -57,7 +62,7 @@ bool AdmittanceController::init()
 {
   ROS_INFO_STREAM("AdmittanceController::init()");
 
-  int dof = robot_->getDOF();
+  const int dof = 6;
 
   // Allocate matrices
   Kp_pos_.setIdentity();
@@ -137,10 +142,44 @@ bool AdmittanceController::init()
     return false;
   }
 
-  // Initialize nominal pose to current
-  Eigen::Affine3d current_pose = robot_->getEndEffectorPose();
-  p_nominal_ = current_pose.translation();
-  R_nominal_ = current_pose.rotation();
+  // Get config file path
+  std::string config_file_path;
+  if (!nh_.getParam("/ur_config_file", config_file_path))
+  {
+    config_file_path = ros::package::getPath("tum_ics_ur10_controller_tutorial") +
+                       "/launch/configs/configUR10.ini";
+    ROS_WARN_STREAM("Config file path not found. Using default: " << config_file_path);
+  }
+
+  // Create kinematic model
+  try
+  {
+    kinematic_model_ = new tum_ics_ur_robot_lli::Robot::KinematicModel(
+      QString::fromStdString(config_file_path),
+      "none"
+    );
+
+    if (kinematic_model_->error())
+    {
+      ROS_ERROR_STREAM("KinematicModel initialization failed: "
+                      << kinematic_model_->errorString().toStdString());
+      delete kinematic_model_;
+      kinematic_model_ = nullptr;
+      return false;
+    }
+
+    ROS_INFO_STREAM("KinematicModel created successfully");
+  }
+  catch (const std::exception& e)
+  {
+    ROS_ERROR_STREAM("Exception creating KinematicModel: " << e.what());
+    kinematic_model_ = nullptr;
+    return false;
+  }
+
+  // Initialize nominal pose to zeros
+  p_nominal_.setZero();
+  R_nominal_.setIdentity();
 
   ROS_INFO_STREAM("AdmittanceController initialized");
   ROS_INFO_STREAM("Mass (XY): " << M_adm_.diagonal().transpose());
@@ -154,22 +193,39 @@ bool AdmittanceController::start()
   ROS_INFO_STREAM("AdmittanceController::start()");
 
   reset();
-  last_time_ = robot_->getTime();
+  last_time_ = tum_ics_ur_robot_lli::RobotTime();
 
   return true;
 }
 
-Eigen::VectorXd AdmittanceController::update(
-  const RobotTime& time,
-  const JointState& state)
+Tum::VectorDOFd AdmittanceController::update(
+  const tum_ics_ur_robot_lli::RobotTime& time,
+  const tum_ics_ur_robot_lli::JointState& state)
 {
-  // Compute dt
-  double dt = (time - last_time_).toSec();
+  // Initialize last_time_ on first call
+  if (last_time_.tD() == 0.0)
+  {
+    last_time_ = time;
+  }
+
+  // Compute dt using ros::Time
+  double dt = (time.tRc() - last_time_.tRc()).toSec();
   last_time_ = time;
 
   if (dt <= 0.0 || dt > 0.1)
   {
     // Invalid dt, skip update
+    return Eigen::VectorXd::Zero(state.q.size());
+  }
+
+  // Update kinematic model
+  if (kinematic_model_)
+  {
+    kinematic_model_->update(time, state);
+  }
+  else
+  {
+    ROS_ERROR_STREAM_THROTTLE(1.0, "KinematicModel not initialized!");
     return Eigen::VectorXd::Zero(state.q.size());
   }
 
@@ -185,9 +241,9 @@ Eigen::VectorXd AdmittanceController::update(
   // Get compliant target pose
   Eigen::Affine3d p_target = getCompliantPose();
 
-  // Get current pose and Jacobian
-  Eigen::Affine3d x_current = robot_->getEndEffectorPose();
-  Eigen::MatrixXd J = robot_->getJacobian();
+  // Get current pose and Jacobian from kinematic model
+  const Eigen::Affine3d& x_current = kinematic_model_->Tef_0();
+  const Eigen::MatrixXd& J = kinematic_model_->Jef_0();
 
   // Compute pose error
   Eigen::Vector3d e_pos = cartesian_error::computePositionError(
@@ -217,7 +273,48 @@ Eigen::VectorXd AdmittanceController::update(
 bool AdmittanceController::stop()
 {
   ROS_INFO_STREAM("AdmittanceController::stop()");
+
+  // Clean up kinematic model
+  if (kinematic_model_)
+  {
+    delete kinematic_model_;
+    kinematic_model_ = nullptr;
+  }
+
   return true;
+}
+
+// Implement additional pure virtuals from Controller
+void AdmittanceController::setQInit(const tum_ics_ur_robot_lli::JointState& qinit)
+{
+  q_init_ = qinit;
+  ROS_INFO_STREAM("AdmittanceController::setQInit() - stored " << q_init_.q.size() << " joints");
+}
+
+void AdmittanceController::setQHome(const tum_ics_ur_robot_lli::JointState& qhome)
+{
+  q_home_ = qhome;
+
+  // Update kinematic model and set nominal pose to home pose
+  if (kinematic_model_)
+  {
+    Eigen::Affine3d home_pose = kinematic_model_->Tef_0(q_home_.q);
+    p_nominal_ = home_pose.translation();
+    R_nominal_ = home_pose.rotation();
+
+    ROS_INFO_STREAM("AdmittanceController::setQHome() - stored " << q_home_.q.size() << " joints");
+    ROS_INFO_STREAM("Home EE position: " << p_nominal_.transpose());
+  }
+  else
+  {
+    ROS_WARN_STREAM("AdmittanceController::setQHome() - KinematicModel not initialized yet");
+  }
+}
+
+void AdmittanceController::setQPark(const tum_ics_ur_robot_lli::JointState& qpark)
+{
+  q_park_ = qpark;
+  ROS_INFO_STREAM("AdmittanceController::setQPark() - stored " << q_park_.q.size() << " joints");
 }
 
 void AdmittanceController::integrateAdmittance(double dt, const Eigen::Vector2d& F_ext)

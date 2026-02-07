@@ -78,32 +78,17 @@ file(GLOB_RECURSE MY_CTRL_INC RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} FOLLOW_SYMLIN
 # Sections Library. Here goes the src code of your controller
 ##############################################################################
 
-# New modular controller library
 add_library(my_robot_control_lli
-   # Common utilities
    src/common/math_utils.cpp
 
-   # Joint space controllers
    src/joint/joint_pd_controller.cpp
-
-   # Cartesian space controllers
    src/cartesian/cartesian_error.cpp
    src/cartesian/cartesian_pdg_controller.cpp
    src/cartesian/admittance_controller.cpp
    src/cartesian/hybrid_insertion_controller.cpp
-
-   # Gripper interface
    src/gripper/lacquey_gripper_controller.cpp
-
-   # Sensor interfaces
    src/sensors/ft_sensor_interface.cpp
-
-   # Finite state machines
    src/fsm/peg_in_hole_fsm.cpp
-
-   # Old controllers (moved to _old/)
-   # src/simple_effort_controller.cpp
-   # src/operational_space_controller.cpp
 
    ${MY_CTRL_INC}
 )
@@ -127,12 +112,10 @@ add_dependencies(my_robot_control_lli
 # Applications. Here goes your applications (using the controller class you defined in the library above)
 ##############################################################################
 
-# Note: Application nodes will be added as controllers are implemented
-# Old nodes moved to _old/
 set(APP_TARGETS
-  joint_pd_test_node
-  cartesian_pdg_test_node
-  peg_in_hole_fsm_node
+  # joint_pd_test_node
+  # cartesian_pdg_test_node
+  # peg_in_hole_fsm_node
   # simple_effort_controller_node (moved to _old/)
   # operational_space_controller_node (moved to _old/)
 )

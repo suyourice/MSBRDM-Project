@@ -4,10 +4,13 @@ namespace tum_ics_ur10_controller_tutorial
 {
 
 PegInHoleFSM::PegInHoleFSM(double weight, const QString& name)
-  : ControllerBase(weight, name),
-    joint_ctrl_(1.0, "FSM_JointPD"),
-    cartesian_ctrl_(1.0, "FSM_CartesianPDG"),
-    insertion_ctrl_(1.0, "FSM_HybridInsertion"),
+  : ControllerBase(name,
+                   tum_ics_ur_robot_lli::RobotControllers::STANDARD_TYPE,
+                   tum_ics_ur_robot_lli::RobotControllers::JOINT_SPACE,
+                   weight),
+    joint_ctrl_("FSM_JointPD"),
+    cartesian_ctrl_("FSM_CartesianPDG"),
+    insertion_ctrl_("FSM_HybridInsertion"),
     state_(State::INIT),
     retry_count_(0),
     max_retries_(3),
@@ -40,13 +43,8 @@ bool PegInHoleFSM::init()
 {
   ROS_INFO_STREAM("PegInHoleFSM::init()");
 
-  // Set robot for sub-controllers
-  joint_ctrl_.setRobot(robot_);
-  cartesian_ctrl_.setRobot(robot_);
-  insertion_ctrl_.setRobot(robot_);
-
-  // Initialize sub-controllers
-  if (!joint_ctrl_.init() || !cartesian_ctrl_.init() || !insertion_ctrl_.init())
+  // Initialize sub-controllers (they create their own KinematicModels)
+  if (!joint_ctrl_.callInit() || !cartesian_ctrl_.callInit() || !insertion_ctrl_.callInit())
   {
     ROS_ERROR("Failed to initialize sub-controllers");
     return false;
@@ -65,7 +63,9 @@ bool PegInHoleFSM::init()
   }
   else
   {
-    q_home_ = robot_->qHome();
+    // Default home position (all zeros)
+    q_home_ = Eigen::VectorXd::Zero(6);
+    ROS_WARN("Home position not specified, using zeros");
   }
 
   // Peg position
@@ -162,13 +162,13 @@ void PegInHoleFSM::transitionTo(State new_state)
   state_ = new_state;
   ROS_INFO_STREAM("FSM: " << old_state_name << " -> " << getStateName());
 
-  state_start_time_ = robot_->getTime();
+  state_start_time_ = tum_ics_ur_robot_lli::RobotTime();
 
   // State entry actions
   switch (state_)
   {
     case State::HOME:
-      joint_ctrl_.start();
+      joint_ctrl_.callStart();
       joint_ctrl_.setDesiredPosition(q_home_);
       break;
 
@@ -178,7 +178,7 @@ void PegInHoleFSM::transitionTo(State new_state)
 
     case State::MOVE_TO_PEG:
     {
-      cartesian_ctrl_.start();
+      cartesian_ctrl_.callStart();
       Eigen::Affine3d target = Eigen::Affine3d::Identity();
       target.translation() = p_peg_;
       target.translation().z() += 0.1;  // 10cm above
@@ -189,7 +189,7 @@ void PegInHoleFSM::transitionTo(State new_state)
 
     case State::DESCEND_TO_PEG:
     {
-      cartesian_ctrl_.start();
+      cartesian_ctrl_.callStart();
       Eigen::Affine3d target = Eigen::Affine3d::Identity();
       target.translation() = p_peg_;
       target.linear() = R_peg_;
@@ -203,7 +203,7 @@ void PegInHoleFSM::transitionTo(State new_state)
 
     case State::LIFT_PEG:
     {
-      cartesian_ctrl_.start();
+      cartesian_ctrl_.callStart();
       Eigen::Affine3d target = cartesian_ctrl_.getDesiredPose();
       target.translation().z() += 0.05;  // Lift 5cm
       cartesian_ctrl_.setDesiredPose(target);
@@ -212,7 +212,7 @@ void PegInHoleFSM::transitionTo(State new_state)
 
     case State::MOVE_ABOVE_HOLE:
     {
-      cartesian_ctrl_.start();
+      cartesian_ctrl_.callStart();
       Eigen::Affine3d target = Eigen::Affine3d::Identity();
       target.translation() = p_hole_;
       target.translation().z() += 0.1;  // 10cm above hole
@@ -223,7 +223,7 @@ void PegInHoleFSM::transitionTo(State new_state)
 
     case State::ALIGN_ORIENTATION:
     {
-      cartesian_ctrl_.start();
+      cartesian_ctrl_.callStart();
       Eigen::Affine3d target = Eigen::Affine3d::Identity();
       target.translation() = p_hole_;
       target.translation().z() += 0.05;  // 5cm above hole
@@ -234,7 +234,7 @@ void PegInHoleFSM::transitionTo(State new_state)
 
     case State::CIRCULAR_INSERTION:
     {
-      insertion_ctrl_.start();
+      insertion_ctrl_.callStart();
       Eigen::Vector3d start_pos = p_hole_;
       start_pos.z() += 0.02;  // Start 2cm above
       insertion_ctrl_.setStartPosition(start_pos);
@@ -250,7 +250,7 @@ void PegInHoleFSM::transitionTo(State new_state)
 
 bool PegInHoleFSM::checkStateComplete()
 {
-  double elapsed = (robot_->getTime() - state_start_time_).toSec();
+  double elapsed = (last_time_.tRc() - state_start_time_.tRc()).toSec();
 
   // Check timeout
   if (state_timeouts_.count(state_) > 0)
@@ -287,8 +287,12 @@ bool PegInHoleFSM::checkStateComplete()
   }
 }
 
-Eigen::VectorXd PegInHoleFSM::update(const RobotTime& time, const JointState& state)
+Tum::VectorDOFd PegInHoleFSM::update(const tum_ics_ur_robot_lli::RobotTime& time,
+                                     const tum_ics_ur_robot_lli::JointState& state)
 {
+  // Update time tracking
+  last_time_ = time;
+
   // State machine logic - check for transitions
   if (checkStateComplete())
   {
@@ -364,7 +368,7 @@ Eigen::VectorXd PegInHoleFSM::update(const RobotTime& time, const JointState& st
   switch (state_)
   {
     case State::HOME:
-      tau = joint_ctrl_.update(time, state);
+      tau = joint_ctrl_.callUpdate(time, state);
       break;
 
     case State::MOVE_TO_PEG:
@@ -372,11 +376,11 @@ Eigen::VectorXd PegInHoleFSM::update(const RobotTime& time, const JointState& st
     case State::LIFT_PEG:
     case State::MOVE_ABOVE_HOLE:
     case State::ALIGN_ORIENTATION:
-      tau = cartesian_ctrl_.update(time, state);
+      tau = cartesian_ctrl_.callUpdate(time, state);
       break;
 
     case State::CIRCULAR_INSERTION:
-      tau = insertion_ctrl_.update(time, state);
+      tau = insertion_ctrl_.callUpdate(time, state);
       break;
 
     default:
@@ -385,6 +389,46 @@ Eigen::VectorXd PegInHoleFSM::update(const RobotTime& time, const JointState& st
   }
 
   return tau;
+}
+
+// Implement additional pure virtuals from Controller
+void PegInHoleFSM::setQInit(const tum_ics_ur_robot_lli::JointState& qinit)
+{
+  q_init_ = qinit;
+
+  // Propagate to sub-controllers
+  joint_ctrl_.setQInit(qinit);
+  cartesian_ctrl_.setQInit(qinit);
+  insertion_ctrl_.setQInit(qinit);
+
+  ROS_INFO_STREAM("PegInHoleFSM::setQInit() - stored and propagated to sub-controllers");
+}
+
+void PegInHoleFSM::setQHome(const tum_ics_ur_robot_lli::JointState& qhome)
+{
+  q_home_stored_ = qhome;
+
+  // Propagate to sub-controllers
+  joint_ctrl_.setQHome(qhome);
+  cartesian_ctrl_.setQHome(qhome);
+  insertion_ctrl_.setQHome(qhome);
+
+  // Use stored q_home for FSM waypoint
+  q_home_ = qhome.q;
+
+  ROS_INFO_STREAM("PegInHoleFSM::setQHome() - stored and propagated to sub-controllers");
+}
+
+void PegInHoleFSM::setQPark(const tum_ics_ur_robot_lli::JointState& qpark)
+{
+  q_park_ = qpark;
+
+  // Propagate to sub-controllers
+  joint_ctrl_.setQPark(qpark);
+  cartesian_ctrl_.setQPark(qpark);
+  insertion_ctrl_.setQPark(qpark);
+
+  ROS_INFO_STREAM("PegInHoleFSM::setQPark() - stored and propagated to sub-controllers");
 }
 
 } // namespace tum_ics_ur10_controller_tutorial

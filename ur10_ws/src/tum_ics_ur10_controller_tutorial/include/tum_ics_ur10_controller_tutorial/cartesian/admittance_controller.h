@@ -2,6 +2,7 @@
 
 #include <tum_ics_ur10_controller_tutorial/common/controller_base.h>
 #include <tum_ics_ur10_controller_tutorial/sensors/ft_sensor_interface.h>
+#include <tum_ics_ur_robot_lli/Robot/KinematicModel.h>
 #include <ros/ros.h>
 #include <Eigen/Dense>
 
@@ -21,8 +22,8 @@ namespace tum_ics_ur10_controller_tutorial
 class AdmittanceController : public ControllerBase
 {
 public:
-  AdmittanceController(double weight = 1.0,
-                       const QString& name = "AdmittanceController");
+  AdmittanceController(const QString& name = "AdmittanceController",
+                       double weight = 1.0);
 
   virtual ~AdmittanceController() = default;
 
@@ -57,8 +58,14 @@ public:
 protected:
   bool init() override;
   bool start() override;
-  Eigen::VectorXd update(const RobotTime& time, const JointState& state) override;
+  Tum::VectorDOFd update(const tum_ics_ur_robot_lli::RobotTime& time,
+                         const tum_ics_ur_robot_lli::JointState& state) override;
   bool stop() override;
+
+  // Additional pure virtuals from Controller base
+  void setQInit(const tum_ics_ur_robot_lli::JointState& qinit) override;
+  void setQHome(const tum_ics_ur_robot_lli::JointState& qhome) override;
+  void setQPark(const tum_ics_ur_robot_lli::JointState& qpark) override;
 
 private:
   // Admittance dynamics integration
@@ -66,6 +73,14 @@ private:
 
   // F/T sensor interface
   FTSensorInterface ft_sensor_;
+
+  // Kinematic model
+  tum_ics_ur_robot_lli::Robot::KinematicModel* kinematic_model_;
+
+  // Stored robot configurations
+  tum_ics_ur_robot_lli::JointState q_init_;
+  tum_ics_ur_robot_lli::JointState q_home_;
+  tum_ics_ur_robot_lli::JointState q_park_;
 
   // Admittance parameters (XY plane only)
   Eigen::Matrix2d M_adm_;  // Virtual mass
@@ -86,7 +101,7 @@ private:
 
   // ROS
   ros::NodeHandle nh_;
-  ros::Time last_time_;
+  tum_ics_ur_robot_lli::RobotTime last_time_;
 
   // Limits
   double max_displacement_;  // Maximum admittance displacement (m)

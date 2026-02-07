@@ -2,6 +2,7 @@
 
 #include <tum_ics_ur10_controller_tutorial/common/controller_base.h>
 #include <tum_ics_ur10_controller_tutorial/sensors/ft_sensor_interface.h>
+#include <tum_ics_ur_robot_lli/Robot/KinematicModel.h>
 #include <ros/ros.h>
 #include <Eigen/Dense>
 
@@ -27,8 +28,8 @@ namespace tum_ics_ur10_controller_tutorial
 class HybridInsertionController : public ControllerBase
 {
 public:
-  HybridInsertionController(double weight = 1.0,
-                            const QString& name = "HybridInsertionController");
+  HybridInsertionController(const QString& name = "HybridInsertionController",
+                            double weight = 1.0);
 
   virtual ~HybridInsertionController() = default;
 
@@ -59,10 +60,16 @@ public:
    */
   void reset();
 
+  // Additional pure virtuals from Controller base (public for FSM access)
+  void setQInit(const tum_ics_ur_robot_lli::JointState& qinit) override;
+  void setQHome(const tum_ics_ur_robot_lli::JointState& qhome) override;
+  void setQPark(const tum_ics_ur_robot_lli::JointState& qpark) override;
+
 protected:
   bool init() override;
   bool start() override;
-  Eigen::VectorXd update(const RobotTime& time, const JointState& state) override;
+  Tum::VectorDOFd update(const tum_ics_ur_robot_lli::RobotTime& time,
+                         const tum_ics_ur_robot_lli::JointState& state) override;
   bool stop() override;
 
 private:
@@ -77,6 +84,14 @@ private:
 
   // F/T sensor
   FTSensorInterface ft_sensor_;
+
+  // Kinematic model
+  tum_ics_ur_robot_lli::Robot::KinematicModel* kinematic_model_;
+
+  // Stored robot configurations
+  tum_ics_ur_robot_lli::JointState q_init_;
+  tum_ics_ur_robot_lli::JointState q_home_;
+  tum_ics_ur_robot_lli::JointState q_park_;
 
   // Circular motion parameters
   double radius_;       // Search radius (m)
@@ -109,8 +124,8 @@ private:
   Eigen::MatrixXd Kd_q_;
 
   // Time tracking
-  ros::Time start_time_;
-  ros::Time last_time_;
+  tum_ics_ur_robot_lli::RobotTime start_time_;
+  tum_ics_ur_robot_lli::RobotTime last_time_;
 
   // ROS
   ros::NodeHandle nh_;

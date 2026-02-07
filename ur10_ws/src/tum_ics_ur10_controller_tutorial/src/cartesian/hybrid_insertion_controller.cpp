@@ -1,12 +1,17 @@
 #include <tum_ics_ur10_controller_tutorial/cartesian/hybrid_insertion_controller.h>
 #include <tum_ics_ur10_controller_tutorial/cartesian/cartesian_error.h>
 #include <tum_ics_ur10_controller_tutorial/common/math_utils.h>
+#include <ros/package.h>
 
 namespace tum_ics_ur10_controller_tutorial
 {
 
-HybridInsertionController::HybridInsertionController(double weight, const QString& name)
-  : ControllerBase(weight, name),
+HybridInsertionController::HybridInsertionController(const QString& name, double weight)
+  : ControllerBase(name,
+                   tum_ics_ur_robot_lli::RobotControllers::STANDARD_TYPE,
+                   tum_ics_ur_robot_lli::RobotControllers::CARTESIAN_SPACE,
+                   weight),
+    kinematic_model_(nullptr),
     radius_(0.003),
     omega_(0.5),
     v_insert_(0.002),
@@ -63,7 +68,7 @@ bool HybridInsertionController::init()
 {
   ROS_INFO_STREAM("HybridInsertionController::init()");
 
-  int dof = robot_->getDOF();
+  const int dof = 6;
 
   // Allocate matrices
   Kp_pos_.setIdentity();
@@ -152,12 +157,46 @@ bool HybridInsertionController::init()
     return false;
   }
 
-  // Initialize pose
-  Eigen::Affine3d current_pose = robot_->getEndEffectorPose();
-  center_ = current_pose.translation();
-  z_start_ = center_.z();
-  p_desired_ = center_;
-  R_desired_ = current_pose.rotation();
+  // Get config file path
+  std::string config_file_path;
+  if (!nh_.getParam("/ur_config_file", config_file_path))
+  {
+    config_file_path = ros::package::getPath("tum_ics_ur10_controller_tutorial") +
+                       "/launch/configs/configUR10.ini";
+    ROS_WARN_STREAM("Config file path not found. Using default: " << config_file_path);
+  }
+
+  // Create kinematic model
+  try
+  {
+    kinematic_model_ = new tum_ics_ur_robot_lli::Robot::KinematicModel(
+      QString::fromStdString(config_file_path),
+      "none"
+    );
+
+    if (kinematic_model_->error())
+    {
+      ROS_ERROR_STREAM("KinematicModel initialization failed: "
+                      << kinematic_model_->errorString().toStdString());
+      delete kinematic_model_;
+      kinematic_model_ = nullptr;
+      return false;
+    }
+
+    ROS_INFO_STREAM("KinematicModel created successfully");
+  }
+  catch (const std::exception& e)
+  {
+    ROS_ERROR_STREAM("Exception creating KinematicModel: " << e.what());
+    kinematic_model_ = nullptr;
+    return false;
+  }
+
+  // Initialize pose to zeros
+  center_.setZero();
+  z_start_ = 0.0;
+  p_desired_.setZero();
+  R_desired_.setIdentity();
 
   ROS_INFO_STREAM("HybridInsertionController initialized");
   ROS_INFO_STREAM("  Radius: " << radius_ << " m");
@@ -173,8 +212,8 @@ bool HybridInsertionController::start()
   ROS_INFO_STREAM("HybridInsertionController::start()");
 
   reset();
-  start_time_ = robot_->getTime();
-  last_time_ = start_time_;
+  start_time_ = tum_ics_ur_robot_lli::RobotTime();
+  last_time_ = tum_ics_ur_robot_lli::RobotTime();
 
   // Record initial force
   force_initial_ = ft_sensor_.getForce().z();
@@ -182,16 +221,34 @@ bool HybridInsertionController::start()
   return true;
 }
 
-Eigen::VectorXd HybridInsertionController::update(
-  const RobotTime& time,
-  const JointState& state)
+Tum::VectorDOFd HybridInsertionController::update(
+  const tum_ics_ur_robot_lli::RobotTime& time,
+  const tum_ics_ur_robot_lli::JointState& state)
 {
+  // Initialize time on first call
+  if (last_time_.tD() == 0.0)
+  {
+    last_time_ = time;
+    start_time_ = time;
+  }
+
   // Compute dt
-  double dt = (time - last_time_).toSec();
+  double dt = (time.tRc() - last_time_.tRc()).toSec();
   last_time_ = time;
 
   if (dt <= 0.0 || dt > 0.1)
   {
+    return Eigen::VectorXd::Zero(state.q.size());
+  }
+
+  // Update kinematic model
+  if (kinematic_model_)
+  {
+    kinematic_model_->update(time, state);
+  }
+  else
+  {
+    ROS_ERROR_STREAM_THROTTLE(1.0, "KinematicModel not initialized!");
     return Eigen::VectorXd::Zero(state.q.size());
   }
 
@@ -212,9 +269,9 @@ Eigen::VectorXd HybridInsertionController::update(
     return Eigen::VectorXd::Zero(state.q.size());
   }
 
-  // Get current pose and Jacobian
-  Eigen::Affine3d x_current = robot_->getEndEffectorPose();
-  Eigen::MatrixXd J = robot_->getJacobian();
+  // Get current pose and Jacobian from kinematic model
+  const Eigen::Affine3d& x_current = kinematic_model_->Tef_0();
+  const Eigen::MatrixXd& J = kinematic_model_->Jef_0();
 
   // Compute pose error
   Eigen::Vector3d e_pos = cartesian_error::computePositionError(
@@ -244,13 +301,21 @@ Eigen::VectorXd HybridInsertionController::update(
 bool HybridInsertionController::stop()
 {
   ROS_INFO_STREAM("HybridInsertionController::stop()");
+
+  // Clean up kinematic model
+  if (kinematic_model_)
+  {
+    delete kinematic_model_;
+    kinematic_model_ = nullptr;
+  }
+
   return true;
 }
 
 void HybridInsertionController::updateDesiredPosition(double dt)
 {
   // Time since start
-  double t = (last_time_ - start_time_).toSec();
+  double t = (last_time_.tRc() - start_time_.tRc()).toSec();
 
   // 1. Z-axis: Descend at constant velocity
   p_desired_.z() -= v_insert_ * dt;
@@ -303,6 +368,41 @@ bool HybridInsertionController::checkSuccess()
   bool force_dropped = (force_initial_ - force_current) > force_drop_threshold_;
 
   return depth_reached && force_dropped;
+}
+
+// Implement additional pure virtuals from Controller
+void HybridInsertionController::setQInit(const tum_ics_ur_robot_lli::JointState& qinit)
+{
+  q_init_ = qinit;
+  ROS_INFO_STREAM("HybridInsertionController::setQInit() - stored " << q_init_.q.size() << " joints");
+}
+
+void HybridInsertionController::setQHome(const tum_ics_ur_robot_lli::JointState& qhome)
+{
+  q_home_ = qhome;
+
+  // Update kinematic model and set center position to home EE position
+  if (kinematic_model_)
+  {
+    Eigen::Affine3d home_pose = kinematic_model_->Tef_0(q_home_.q);
+    center_ = home_pose.translation();
+    z_start_ = center_.z();
+    p_desired_ = center_;
+    R_desired_ = home_pose.rotation();
+
+    ROS_INFO_STREAM("HybridInsertionController::setQHome() - stored " << q_home_.q.size() << " joints");
+    ROS_INFO_STREAM("Home EE position: " << center_.transpose());
+  }
+  else
+  {
+    ROS_WARN_STREAM("HybridInsertionController::setQHome() - KinematicModel not initialized yet");
+  }
+}
+
+void HybridInsertionController::setQPark(const tum_ics_ur_robot_lli::JointState& qpark)
+{
+  q_park_ = qpark;
+  ROS_INFO_STREAM("HybridInsertionController::setQPark() - stored " << q_park_.q.size() << " joints");
 }
 
 } // namespace tum_ics_ur10_controller_tutorial

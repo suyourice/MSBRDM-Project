@@ -168,41 +168,41 @@ where singular values are damped: σ_inv = σ / (σ² + λ²)
 
 ## Development Status
 
-### Phase 1: Infrastructure ✅
+### Phase 1: Infrastructure
 - [x] ControllerBase interface
 - [x] Math utilities (angle-axis, pseudo-inverse)
 - [x] Type definitions
 - [x] Directory structure
 
-### Phase 2: Joint Controller ✅
+### Phase 2: Joint Controller
 - [x] Joint PD controller implementation
 - [x] Configuration file (joint_pd.yaml)
 - [x] Test node (joint_pd_test_node)
 
-### Phase 3: Cartesian PDG Controller ✅
+### Phase 3: Cartesian PDG Controller
 - [x] CartesianPDGController implementation
 - [x] Cartesian error computation (position + angle-axis orientation)
 - [x] Configuration file (cartesian_pdg.yaml)
 - [x] Test node (cartesian_pdg_test_node)
 
-### Phase 4: Gripper Controller ✅
+### Phase 4: Gripper Controller
 - [x] LacqueyGripperController implementation
 - [x] ROS topic interface (open/close/grasp)
 - [x] Configuration file (gripper.yaml)
 
-### Phase 5: F/T Sensor Interface ✅
+### Phase 5: F/T Sensor Interface
 - [x] FTSensorInterface implementation
 - [x] Subscribe to WrenchStamped topic
 - [x] Low-pass filtering and bias removal
 - [x] Configuration file (sensors.yaml)
 
-### Phase 6: Admittance Controller ✅
+### Phase 6: Admittance Controller
 - [x] AdmittanceController implementation
 - [x] XY-plane force compliance (M·Δẍ + D·Δẋ = F_ext)
 - [x] F/T sensor integration
 - [x] Configuration file (admittance.yaml)
 
-### Phase 7: Hybrid Insertion Controller ✅
+### Phase 7: Hybrid Insertion Controller
 - [x] HybridInsertionController implementation
 - [x] Z-axis position control (constant descent)
 - [x] XY-plane circular motion (spiral search)
@@ -210,7 +210,7 @@ where singular values are damped: σ_inv = σ / (σ² + λ²)
 - [x] Success detection (z_depth + force_drop)
 - [x] Configuration file (hybrid_insertion.yaml)
 
-### Phase 8: FSM (Final) ✅
+### Phase 8: FSM (Final)
 - [x] Peg-in-hole state machine
 - [x] State transitions and sequencing
 - [x] Retry logic

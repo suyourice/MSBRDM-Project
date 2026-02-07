@@ -50,7 +50,7 @@ def generate_markers(output_dir='aruco_markers', num_markers=20, marker_size_px=
         cv2.imwrite(filename, full_image)
         print(f"  Generated: {filename}")
 
-    print(f"\n✓ Generated {num_markers} markers")
+    print(f"\nGenerated {num_markers} markers")
     print(f"\nPRINT INSTRUCTIONS:")
     print(f"  1. Print markers at exactly 5cm x 5cm (inner black square)")
     print(f"  2. Use thick paper or cardboard for rigidity")
@@ -107,7 +107,7 @@ def generate_marker_sheet(output_file='aruco_sheet.png', markers_per_row=4, num_
         cv2.putText(sheet, text, (text_x, text_y), font, 0.7, 0, 2)
 
     cv2.imwrite(output_file, sheet)
-    print(f"✓ Saved: {output_file}")
+    print(f"Saved: {output_file}")
     print(f"\nPrint this sheet on A4 paper and cut out individual markers")
 
 

@@ -1,7 +1,8 @@
 #pragma once
 
 #include <tum_ics_ur_robot_lli/RobotControllers/ControlEffort.h>
-#include <tum_ics_ur10_controller_tutorial/common/types.h>
+#include <tum_ics_ur_robot_lli/JointState.h>
+#include <tum_ics_ur_robot_lli/RobotTime.h>
 #include <Eigen/Dense>
 
 namespace tum_ics_ur10_controller_tutorial
@@ -25,14 +26,26 @@ class ControllerBase
 public:
   /**
    * @brief Constructor
-   * @param weight Controller weight for blending (default 1.0)
    * @param name Controller name for logging
+   * @param type Control type (from ControlEffort)
+   * @param space Control space (from ControlEffort)
+   * @param weight Controller weight for blending (default 1.0)
    */
-  ControllerBase(double weight = 1.0, const QString& name = "ControllerBase")
-    : ControlEffort(weight, name)
+  ControllerBase(
+    const QString& name = "ControllerBase",
+    tum_ics_ur_robot_lli::RobotControllers::ControlType type = tum_ics_ur_robot_lli::RobotControllers::STANDARD_TYPE,
+    tum_ics_ur_robot_lli::RobotControllers::ControlSpace space = tum_ics_ur_robot_lli::RobotControllers::JOINT_SPACE,
+    double weight = 1.0)
+    : ControlEffort(name, type, space, weight)
   {}
 
   virtual ~ControllerBase() = default;
+
+  // Public wrappers for FSM to call protected methods
+  bool callInit() { return init(); }
+  bool callStart() { return start(); }
+  Tum::VectorDOFd callUpdate(const tum_ics_ur_robot_lli::RobotTime& time, const tum_ics_ur_robot_lli::JointState& state) { return update(time, state); }
+  bool callStop() { return stop(); }
 
 protected:
   /**
@@ -66,11 +79,11 @@ protected:
    *
    * @param time Current robot time
    * @param state Current joint state (from LLI JointState)
-   * @return Joint torque command (Eigen::VectorXd)
+   * @return Joint torque command (Tum::VectorDOFd)
    */
-  virtual Eigen::VectorXd update(
-    const RobotTime& time,
-    const JointState& state
+  virtual Tum::VectorDOFd update(
+    const tum_ics_ur_robot_lli::RobotTime& time,
+    const tum_ics_ur_robot_lli::JointState& state
   ) override = 0;
 
   /**
@@ -84,15 +97,24 @@ protected:
    */
   virtual bool stop() override = 0;
 
-protected:
-  // Note: robot_ pointer is provided by ControlEffort base class
-  // Available methods:
-  //   robot_->getJacobian()          - Get Jacobian matrix
-  //   robot_->getEndEffectorPose()   - Get current EE pose (Eigen::Affine3d)
-  //   robot_->qHome()                - Get home position
-  //   robot_->qPark()                - Get park position
-  //   robot_->getDOF()               - Get degrees of freedom
-  //   robot_->getTime()              - Get current time
+  /**
+   * @brief Set initial joint state
+   * @param qinit Initial joint configuration
+   */
+  virtual void setQInit(const tum_ics_ur_robot_lli::JointState& qinit) override = 0;
+
+  /**
+   * @brief Set home joint state
+   * @param qhome Home joint configuration
+   */
+  virtual void setQHome(const tum_ics_ur_robot_lli::JointState& qhome) override = 0;
+
+  /**
+   * @brief Set park joint state
+   * @param qpark Park joint configuration
+   */
+  virtual void setQPark(const tum_ics_ur_robot_lli::JointState& qpark) override = 0;
+
 };
 
 } // namespace tum_ics_ur10_controller_tutorial

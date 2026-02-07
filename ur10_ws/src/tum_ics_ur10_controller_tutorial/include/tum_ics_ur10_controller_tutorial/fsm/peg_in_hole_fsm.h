@@ -62,8 +62,14 @@ public:
 protected:
   bool init() override;
   bool start() override;
-  Eigen::VectorXd update(const RobotTime& time, const JointState& state) override;
+  Tum::VectorDOFd update(const tum_ics_ur_robot_lli::RobotTime& time,
+                         const tum_ics_ur_robot_lli::JointState& state) override;
   bool stop() override;
+
+  // Additional pure virtuals from Controller base
+  void setQInit(const tum_ics_ur_robot_lli::JointState& qinit) override;
+  void setQHome(const tum_ics_ur_robot_lli::JointState& qhome) override;
+  void setQPark(const tum_ics_ur_robot_lli::JointState& qpark) override;
 
 private:
   // State transition logic
@@ -78,8 +84,13 @@ private:
 
   // Current state
   State state_;
-  ros::Time state_start_time_;
-  ros::Time last_time_;
+  tum_ics_ur_robot_lli::RobotTime state_start_time_;
+  tum_ics_ur_robot_lli::RobotTime last_time_;
+
+  // Stored robot configurations
+  tum_ics_ur_robot_lli::JointState q_init_;
+  tum_ics_ur_robot_lli::JointState q_home_stored_;
+  tum_ics_ur_robot_lli::JointState q_park_;
 
   // State timeouts
   std::map<State, double> state_timeouts_;
