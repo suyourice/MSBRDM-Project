@@ -19,8 +19,13 @@ This repository uses the **TUM ICS UR10 framework** with ROS Noetic on Ubuntu 20
 
 ## Build Instructions
 
-Make sure all required `.deb` packages are installed before building  
-(see course-provided installation instructions).
+Make sure all required `.deb` packages are installed before building.
+```bash
+cd ~/MSBRDM/MSBRDM-Project/noetic_ubuntu20
+sudo dpkg -i libtum-ics-*
+sudo dpkg -i libtumtools-*
+sudo dpkg -i ros-*
+```
 
 Build the catkin workspace:
 
