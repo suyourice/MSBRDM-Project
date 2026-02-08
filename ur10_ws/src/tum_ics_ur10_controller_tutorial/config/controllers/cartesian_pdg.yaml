@@ -1,26 +1,40 @@
 # Cartesian PDG Controller Configuration
-# Control law: q̇_r = J⁺(ẋ_d + Kp·(x_d - x)), τ = -Kd·(q̇ - q̇_r)
+# ROBUST: Jacobian transpose with error saturation + force clamping + damping
+# Control law: F = Kp * saturate(e_pos), F = clamp(F, 30N), tau = J^T * F - Kd * qp
+# Safety: max_error=0.5m, max_force=30N, max_torque=100Nm
 
 cartesian_pdg_controller:
-  Kp_pos: [10.0, 10.0, 10.0]
+  # Task-space position stiffness (N/m)
+  # Lower values = smoother motion, higher values = faster convergence
+  Kp_pos: [80.0, 80.0, 80.0]
+  # Orientation stiffness (enable if you want gripper direction control)
   Kp_ori: [10.0, 10.0, 10.0]
 
-  # Joint space derivative gains
-  # Units: Nms/rad
-  Kd_q: [15.0, 15.0, 15.0, 10.0, 10.0, 10.0]
+  # Joint-space damping (Nm·s/rad)
+  # Higher values = more stability, lower values = faster response
+  Kd_q: [15.0, 15.0, 15.0, 12.0, 12.0, 12.0]
+
+  # Joint-space proportional term (integrated velocity reference)
+  # Helps overcome gravity/model mismatch in PDG mode
+  use_joint_p: true
+  Kp_q: [80.0, 80.0, 80.0, 50.0, 50.0, 50.0]
 
   # Maximum Cartesian velocity
-  # Units: m/s (rad/s for orientation)
-  max_velocity: 0.5
+  max_lin_velocity: 0.1
+  max_ori_velocity: 0.3
 
-  # Maximum joint torque
-  # Units: Nm
-  max_torque: 50.0
+  # Maximum joint torque (Nm)
+  max_torque: 100.0
 
-  # Damping factor for Jacobian pseudo-inverse
-  # Prevents singularity issues
+  # Damping factor (for pseudo-inverse, not used)
   damping_factor: 0.01
 
-  # Tolerances for "at target" check
-  position_tolerance: 0.01    # m
-  orientation_tolerance: 0.05 # rad (~2.9 degrees)
+  # Disable extra task-space Jᵀ term (pure PDG)
+  task_pd: false
+
+  # Gravity compensation using DynamicModel::G()
+  use_gravity_comp: true
+
+  # Tolerances
+  position_tolerance: 0.01
+  orientation_tolerance: 0.05

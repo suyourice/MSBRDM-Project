@@ -101,6 +101,11 @@ private:
   Eigen::Vector3d p_hole_;
   Eigen::Matrix3d R_peg_;
   bool has_q_safe_param_;
+  bool use_frame_transform_;
+  Eigen::Matrix3d frame_R_;
+  Eigen::Vector3d frame_t_;
+  bool use_tool_transform_;
+  Eigen::Affine3d tool_T_;
 
   // Retry logic
   int retry_count_;

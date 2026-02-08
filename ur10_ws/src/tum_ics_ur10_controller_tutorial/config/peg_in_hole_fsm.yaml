@@ -15,8 +15,24 @@ peg_in_hole_fsm:
   # Hole position (x, y, z in meters)
   p_hole: [0.8, -0.2, 0.04]
 
+  # Optional frame transform (visual/URDF -> controller frame)
+  # Use this if RViz coordinates do not match controller motion.
+  # p_controller = R * p_visual + t
+  # Enable this to align RViz/URDF coordinates with the controller frame.
+  use_frame_transform: true
+  # Calibrated from your TF vs controller positions (approx)
+  frame_rpy_deg: [0, 0, 180]
+  frame_xyz: [-0.149, -0.005, -0.033]
+  
+  # Tool transform (ee -> tool), used to align gripper tip with target pose
+  # These values are derived from the URDF lacquey adapter + gripper joints.
+  # Adjust if your gripper appears tilted or offset.
+  tool_rpy_deg: [0, 0, 0]
+  tool_xyz: [0.2, 0.0, 0.0]
+
   # Gripper orientation for grasping (roll, pitch, yaw in degrees)
-  peg_orientation: [0, 0, 0]
+  # [180, 0, 0]: gripper pointing down (for top-down grasping)
+  peg_orientation: [180, 0, 0]
 
   # Retry logic
   max_retries: 3

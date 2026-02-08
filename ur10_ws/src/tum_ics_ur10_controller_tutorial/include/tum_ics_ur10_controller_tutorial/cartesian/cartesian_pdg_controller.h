@@ -2,6 +2,7 @@
 
 #include <tum_ics_ur10_controller_tutorial/common/controller_base.h>
 #include <tum_ics_ur_robot_lli/Robot/KinematicModel.h>
+#include <tum_ics_ur_robot_lli/Robot/DynamicModel.h>
 #include <ros/ros.h>
 #include <Eigen/Dense>
 
@@ -105,6 +106,8 @@ private:
 
   // Kinematic model
   tum_ics_ur_robot_lli::Robot::KinematicModel* kinematic_model_;
+  tum_ics_ur_robot_lli::Robot::DynamicModel* dynamic_model_;
+  bool use_gravity_comp_;
 
   // Stored robot configurations
   tum_ics_ur_robot_lli::JointState q_init_;
@@ -118,6 +121,20 @@ private:
   double max_velocity_;
   double max_torque_;
   double damping_factor_;  // For pseudo-inverse
+  double max_lin_velocity_;  // Cap translational velocity to avoid saturation artifacts
+  double max_ori_velocity_;  // Cap orientation velocity to prevent coupling issues
+
+  // Optional task-space PD term (Jacobian transpose)
+  bool use_task_pd_;
+  double task_pos_scale_;
+  double task_ori_scale_;
+
+  // Optional joint-space proportional term (integrated velocity reference)
+  bool use_joint_p_;
+  Eigen::MatrixXd Kp_q_;
+  Eigen::VectorXd q_ref_;
+  bool q_ref_initialized_;
+  double last_time_;
 };
 
 } // namespace tum_ics_ur10_controller_tutorial

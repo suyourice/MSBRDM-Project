@@ -1,4 +1,5 @@
 #include <tum_ics_ur10_controller_tutorial/fsm/peg_in_hole_fsm.h>
+#include <XmlRpcValue.h>
 
 namespace tum_ics_ur10_controller_tutorial
 {
@@ -15,7 +16,12 @@ PegInHoleFSM::PegInHoleFSM(double weight, const QString& name)
     retry_count_(0),
     max_retries_(3),
     use_aruco_(false),
-    has_q_safe_param_(false)
+    has_q_safe_param_(false),
+    use_frame_transform_(false),
+    frame_R_(Eigen::Matrix3d::Identity()),
+    frame_t_(Eigen::Vector3d::Zero()),
+    use_tool_transform_(false),
+    tool_T_(Eigen::Affine3d::Identity())
 {
 }
 
@@ -116,16 +122,136 @@ bool PegInHoleFSM::init()
     R_peg_.setIdentity();
   }
 
-  // State timeouts
+  // Optional frame transform: map visual/URDF frame -> controller frame
+  // p_controller = R * p_visual + t
+  pnh.param(ns + "/use_frame_transform", use_frame_transform_, false);
+  if (use_frame_transform_)
+  {
+    std::vector<double> frame_rpy_deg;
+    std::vector<double> frame_xyz;
+
+    if (pnh.getParam(ns + "/frame_rpy_deg", frame_rpy_deg) && frame_rpy_deg.size() == 3)
+    {
+      double rr = frame_rpy_deg[0] * M_PI / 180.0;
+      double rp = frame_rpy_deg[1] * M_PI / 180.0;
+      double ry = frame_rpy_deg[2] * M_PI / 180.0;
+      Eigen::AngleAxisd r_roll(rr, Eigen::Vector3d::UnitX());
+      Eigen::AngleAxisd r_pitch(rp, Eigen::Vector3d::UnitY());
+      Eigen::AngleAxisd r_yaw(ry, Eigen::Vector3d::UnitZ());
+      frame_R_ = (r_yaw * r_pitch * r_roll).toRotationMatrix();
+    }
+
+    if (pnh.getParam(ns + "/frame_xyz", frame_xyz) && frame_xyz.size() == 3)
+    {
+      frame_t_ = Eigen::Vector3d(frame_xyz[0], frame_xyz[1], frame_xyz[2]);
+    }
+
+    const Eigen::Vector3d p_peg_raw = p_peg_;
+    const Eigen::Vector3d p_hole_raw = p_hole_;
+
+    p_peg_ = frame_R_ * p_peg_raw + frame_t_;
+    p_hole_ = frame_R_ * p_hole_raw + frame_t_;
+    R_peg_ = frame_R_ * R_peg_;
+
+    ROS_WARN_STREAM("Frame transform enabled: p_controller = R * p_visual + t");
+    if (frame_rpy_deg.size() == 3)
+    {
+      ROS_INFO_STREAM("  frame_rpy_deg: [" << frame_rpy_deg[0] << ", "
+                                           << frame_rpy_deg[1] << ", "
+                                           << frame_rpy_deg[2] << "]");
+    }
+    ROS_INFO_STREAM("  frame_xyz: [" << frame_t_.transpose() << "]");
+    ROS_INFO_STREAM("  p_peg (raw): " << p_peg_raw.transpose());
+    ROS_INFO_STREAM("  p_peg (xfm): " << p_peg_.transpose());
+    ROS_INFO_STREAM("  p_hole(raw): " << p_hole_raw.transpose());
+    ROS_INFO_STREAM("  p_hole(xfm): " << p_hole_.transpose());
+  }
+
+  // Optional tool transform: ee -> tool (e.g., gripper base)
+  // If provided, we will command ee pose such that the tool pose matches target.
+  std::vector<double> tool_rpy_deg;
+  std::vector<double> tool_xyz;
+  bool has_tool_rpy = pnh.getParam(ns + "/tool_rpy_deg", tool_rpy_deg) && tool_rpy_deg.size() == 3;
+  bool has_tool_xyz = pnh.getParam(ns + "/tool_xyz", tool_xyz) && tool_xyz.size() == 3;
+  if (has_tool_rpy || has_tool_xyz)
+  {
+    use_tool_transform_ = true;
+    Eigen::Matrix3d R_tool = Eigen::Matrix3d::Identity();
+    Eigen::Vector3d t_tool = Eigen::Vector3d::Zero();
+
+    if (has_tool_rpy)
+    {
+      double rr = tool_rpy_deg[0] * M_PI / 180.0;
+      double rp = tool_rpy_deg[1] * M_PI / 180.0;
+      double ry = tool_rpy_deg[2] * M_PI / 180.0;
+      Eigen::AngleAxisd r_roll(rr, Eigen::Vector3d::UnitX());
+      Eigen::AngleAxisd r_pitch(rp, Eigen::Vector3d::UnitY());
+      Eigen::AngleAxisd r_yaw(ry, Eigen::Vector3d::UnitZ());
+      R_tool = (r_yaw * r_pitch * r_roll).toRotationMatrix();
+    }
+
+    if (has_tool_xyz)
+    {
+      t_tool = Eigen::Vector3d(tool_xyz[0], tool_xyz[1], tool_xyz[2]);
+    }
+
+    tool_T_ = Eigen::Affine3d::Identity();
+    tool_T_.linear() = R_tool;
+    tool_T_.translation() = t_tool;
+
+    ROS_WARN_STREAM("Tool transform enabled (ee -> tool)");
+    if (has_tool_rpy)
+    {
+      ROS_INFO_STREAM("  tool_rpy_deg: [" << tool_rpy_deg[0] << ", "
+                                          << tool_rpy_deg[1] << ", "
+                                          << tool_rpy_deg[2] << "]");
+    }
+    if (has_tool_xyz)
+    {
+      ROS_INFO_STREAM("  tool_xyz: [" << t_tool.transpose() << "]");
+    }
+  }
+
+  // State timeouts (seconds)
   state_timeouts_[State::MOVE_TO_SAFE] = 10.0;
   state_timeouts_[State::OPEN_GRIPPER] = 2.0;
-  state_timeouts_[State::MOVE_TO_PEG] = 15.0;
-  state_timeouts_[State::DESCEND_TO_PEG] = 10.0;
+  state_timeouts_[State::MOVE_TO_PEG] = 30.0;
+  state_timeouts_[State::DESCEND_TO_PEG] = 30.0;
   state_timeouts_[State::CLOSE_GRIPPER] = 2.0;
-  state_timeouts_[State::LIFT_PEG] = 5.0;
-  state_timeouts_[State::MOVE_ABOVE_HOLE] = 15.0;
-  state_timeouts_[State::ALIGN_ORIENTATION] = 5.0;
+  state_timeouts_[State::LIFT_PEG] = 10.0;
+  state_timeouts_[State::MOVE_ABOVE_HOLE] = 30.0;
+  state_timeouts_[State::ALIGN_ORIENTATION] = 10.0;
   state_timeouts_[State::CIRCULAR_INSERTION] = 30.0;
+
+  // Optional timeout overrides from YAML:
+  // peg_in_hole_fsm:
+  //   timeouts:
+  //     MOVE_TO_PEG: 30.0
+  //     DESCEND_TO_PEG: 30.0
+  XmlRpc::XmlRpcValue timeouts;
+  if (pnh.getParam(ns + "/timeouts", timeouts) &&
+      timeouts.getType() == XmlRpc::XmlRpcValue::TypeStruct)
+  {
+    auto read_timeout = [&](State st, const std::string& key) {
+      if (timeouts.hasMember(key))
+      {
+        const XmlRpc::XmlRpcValue& v = timeouts[key];
+        if (v.getType() == XmlRpc::XmlRpcValue::TypeInt)
+          state_timeouts_[st] = static_cast<int>(v);
+        else if (v.getType() == XmlRpc::XmlRpcValue::TypeDouble)
+          state_timeouts_[st] = static_cast<double>(v);
+      }
+    };
+    read_timeout(State::MOVE_TO_SAFE, "MOVE_TO_SAFE");
+    read_timeout(State::OPEN_GRIPPER, "OPEN_GRIPPER");
+    read_timeout(State::MOVE_TO_PEG, "MOVE_TO_PEG");
+    read_timeout(State::DESCEND_TO_PEG, "DESCEND_TO_PEG");
+    read_timeout(State::CLOSE_GRIPPER, "CLOSE_GRIPPER");
+    read_timeout(State::LIFT_PEG, "LIFT_PEG");
+    read_timeout(State::MOVE_ABOVE_HOLE, "MOVE_ABOVE_HOLE");
+    read_timeout(State::ALIGN_ORIENTATION, "ALIGN_ORIENTATION");
+    read_timeout(State::CIRCULAR_INSERTION, "CIRCULAR_INSERTION");
+  }
 
   // Other parameters
   pnh.param(ns + "/max_retries", max_retries_, 3);
@@ -197,9 +323,7 @@ void PegInHoleFSM::transitionTo(State new_state)
       break;
 
     case State::OPEN_GRIPPER:
-      // Hold the safe pose while opening to avoid free-fall
-      joint_ctrl_.callStart();
-      joint_ctrl_.setDesiredPosition(q_safe_);
+      // Keep JointPD running from MOVE_TO_SAFE so the arm holds pose
       gripper_.open();
       break;
 
@@ -210,6 +334,10 @@ void PegInHoleFSM::transitionTo(State new_state)
       target.translation() = p_peg_;
       target.translation().z() += 0.1;
       target.linear() = R_peg_;
+      if (use_tool_transform_)
+      {
+        target = target * tool_T_.inverse();
+      }
       ROS_INFO_STREAM("MOVE_TO_PEG target position: " << target.translation().transpose());
       cartesian_ctrl_.setDesiredPose(target);
       break;
@@ -221,6 +349,10 @@ void PegInHoleFSM::transitionTo(State new_state)
       Eigen::Affine3d target = Eigen::Affine3d::Identity();
       target.translation() = p_peg_;
       target.linear() = R_peg_;
+      if (use_tool_transform_)
+      {
+        target = target * tool_T_.inverse();
+      }
       cartesian_ctrl_.setDesiredPose(target);
       break;
     }
@@ -248,6 +380,10 @@ void PegInHoleFSM::transitionTo(State new_state)
       target.translation() = p_hole_;
       target.translation().z() += 0.1;  // 10cm above hole
       target.linear() = R_peg_;
+      if (use_tool_transform_)
+      {
+        target = target * tool_T_.inverse();
+      }
       cartesian_ctrl_.setDesiredPose(target);
       break;
     }
@@ -259,6 +395,10 @@ void PegInHoleFSM::transitionTo(State new_state)
       target.translation() = p_hole_;
       target.translation().z() += 0.05;  // 5cm above hole
       target.linear() = R_peg_;
+      if (use_tool_transform_)
+      {
+        target = target * tool_T_.inverse();
+      }
       cartesian_ctrl_.setDesiredPose(target);
       break;
     }
@@ -303,6 +443,9 @@ bool PegInHoleFSM::checkStateComplete()
     case State::DESCEND_TO_PEG:
     case State::LIFT_PEG:
     case State::MOVE_ABOVE_HOLE:
+      // Position-only completion (orientation is not controlled in PDG config)
+      return cartesian_ctrl_.isAtTarget(0.01, 1000.0);
+
     case State::ALIGN_ORIENTATION:
       return cartesian_ctrl_.isAtTarget();
 
@@ -334,6 +477,7 @@ Tum::VectorDOFd PegInHoleFSM::update(const tum_ics_ur_robot_lli::RobotTime& time
       break;
 
     case State::OPEN_GRIPPER:
+      // Hold pose with existing JointPD target (q_safe_) while gripper opens
       tau = joint_ctrl_.callUpdate(time, state);
       break;
 

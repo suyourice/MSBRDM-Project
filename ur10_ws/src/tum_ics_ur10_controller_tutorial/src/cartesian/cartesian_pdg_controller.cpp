@@ -15,7 +15,12 @@ CartesianPDGController::CartesianPDGController(const QString& name, double weigh
     kinematic_model_(nullptr),
     max_velocity_(0.5),
     max_torque_(50.0),
-    damping_factor_(0.01)
+    damping_factor_(0.01),
+    max_lin_velocity_(0.1),
+    max_ori_velocity_(0.5),
+    use_task_pd_(true),
+    task_pos_scale_(1.0),
+    task_ori_scale_(1.0)
 {
   p_desired_.setZero();
   R_desired_.setIdentity();
@@ -27,6 +32,9 @@ void CartesianPDGController::setDesiredPose(const Eigen::Affine3d& pose)
 {
   p_desired_ = pose.translation();
   R_desired_ = pose.rotation();
+
+  ROS_INFO_STREAM("CartesianPDG: setDesiredPose called");
+  ROS_INFO_STREAM("  New p_desired: " << p_desired_.transpose());
 }
 
 void CartesianPDGController::setDesiredPosition(const Eigen::Vector3d& position)
@@ -75,6 +83,13 @@ bool CartesianPDGController::init()
   Kp_pos_.setIdentity();
   Kp_ori_.setIdentity();
   Kd_q_ = Eigen::MatrixXd::Zero(dof, dof);
+  Kp_q_ = Eigen::MatrixXd::Zero(dof, dof);
+  use_joint_p_ = false;
+  use_gravity_comp_ = true;
+  dynamic_model_ = nullptr;
+  q_ref_ = Eigen::VectorXd::Zero(dof);
+  q_ref_initialized_ = false;
+  last_time_ = -1.0;
 
   // Read parameters from ROS (private namespace)
   ros::NodeHandle pnh("~");
@@ -119,10 +134,27 @@ bool CartesianPDGController::init()
     Kd_q_ *= 10.0;
   }
 
+  // Optional joint-space proportional term (integrated velocity reference)
+  std::vector<double> kp_q_vec;
+  if (pnh.getParam(ns + "/Kp_q", kp_q_vec) && kp_q_vec.size() == static_cast<size_t>(dof))
+  {
+    for (int i = 0; i < dof; ++i)
+      Kp_q_(i, i) = kp_q_vec[i];
+    use_joint_p_ = true;
+    ROS_INFO_STREAM("Kp_q loaded from YAML (joint P term enabled)");
+  }
+  pnh.param(ns + "/use_joint_p", use_joint_p_, use_joint_p_);
+
   // Limits
   pnh.param(ns + "/max_velocity", max_velocity_, 0.5);
   pnh.param(ns + "/max_torque", max_torque_, 50.0);
   pnh.param(ns + "/damping_factor", damping_factor_, 0.01);
+  pnh.param(ns + "/max_lin_velocity", max_lin_velocity_, 0.1);  // Limit translation speed to preserve direction
+  pnh.param(ns + "/max_ori_velocity", max_ori_velocity_, 0.5);  // Limit orientation velocity to prevent coupling issues
+  pnh.param(ns + "/task_pd", use_task_pd_, true);
+  pnh.param(ns + "/task_pos_scale", task_pos_scale_, 1.0);
+  pnh.param(ns + "/task_ori_scale", task_ori_scale_, 1.0);
+  pnh.param(ns + "/use_gravity_comp", use_gravity_comp_, true);
 
   // Get config file path from ROS parameter
   std::string config_file_path;
@@ -153,11 +185,35 @@ bool CartesianPDGController::init()
     }
 
     ROS_INFO_STREAM("KinematicModel created successfully");
+
+    // Create dynamic model for gravity compensation (optional)
+    if (use_gravity_comp_)
+    {
+      dynamic_model_ = new tum_ics_ur_robot_lli::Robot::DynamicModel(
+        QString::fromStdString(config_file_path),
+        kinematic_model_);
+      if (dynamic_model_->error())
+      {
+        ROS_WARN_STREAM("DynamicModel initialization failed: "
+                        << dynamic_model_->errorString().toStdString());
+        delete dynamic_model_;
+        dynamic_model_ = nullptr;
+      }
+      else
+      {
+        ROS_INFO_STREAM("DynamicModel created successfully (gravity compensation enabled)");
+      }
+    }
   }
   catch (const std::exception& e)
   {
     ROS_ERROR_STREAM("Exception creating KinematicModel: " << e.what());
     kinematic_model_ = nullptr;
+    if (dynamic_model_)
+    {
+      delete dynamic_model_;
+      dynamic_model_ = nullptr;
+    }
     return false;
   }
 
@@ -170,6 +226,10 @@ bool CartesianPDGController::init()
   ROS_INFO_STREAM("Kp_pos diagonal: " << Kp_pos_.diagonal().transpose());
   ROS_INFO_STREAM("Kp_ori diagonal: " << Kp_ori_.diagonal().transpose());
   ROS_INFO_STREAM("Kd_q diagonal: " << Kd_q_.diagonal().transpose());
+  if (use_joint_p_)
+  {
+    ROS_INFO_STREAM("Kp_q diagonal: " << Kp_q_.diagonal().transpose());
+  }
 
   return true;
 }
@@ -180,6 +240,8 @@ bool CartesianPDGController::start()
 
   // Reset error
   pose_error_.setZero();
+  q_ref_initialized_ = false;
+  last_time_ = -1.0;
 
   return true;
 }
@@ -206,40 +268,111 @@ Tum::VectorDOFd CartesianPDGController::update(
   const Eigen::Affine3d& x_current = kinematic_model_->Tef_0();
   const Eigen::MatrixXd& J = kinematic_model_->Jef_0();  // 6xN Jacobian
 
+  // DEBUG: Check Jacobian size ONCE
+  static bool jacobian_checked = false;
+  if (!jacobian_checked) {
+    ROS_ERROR_STREAM("JACOBIAN SIZE CHECK: " << J.rows() << " x " << J.cols());
+    ROS_ERROR_STREAM("J(0,0:2) = " << J(0,0) << ", " << J(0,1) << ", " << J(0,2));
+    ROS_ERROR_STREAM("J(2,0:2) = " << J(2,0) << ", " << J(2,1) << ", " << J(2,2));
+    jacobian_checked = true;
+  }
+
   // Compute pose error
   Eigen::Vector3d e_pos = cartesian_error::computePositionError(
     x_current.translation(), p_desired_);
   Eigen::Vector3d e_ori = cartesian_error::computeOrientationError(
     x_current.rotation(), R_desired_);
 
+  // Debug output (throttled)
+  static int debug_counter = 0;
+  if (debug_counter++ % 500 == 0)  // Every 1 second (at 500Hz)
+  {
+    ROS_INFO_STREAM("CartesianPDG Debug:");
+    ROS_INFO_STREAM("  Current pos: " << x_current.translation().transpose());
+    ROS_INFO_STREAM("  Desired pos: " << p_desired_.transpose());
+    ROS_INFO_STREAM("  Pos error:   " << e_pos.transpose());
+    ROS_INFO_STREAM("  Ori error:   " << e_ori.transpose());
+
+    // More detailed debug - check control flow
+    Eigen::Matrix<double, 6, 1> xdot_check = xdot_desired_;
+    xdot_check.head<3>() += Kp_pos_ * e_pos;
+    ROS_INFO_STREAM("  xdot (before ori): " << xdot_check.head<3>().transpose());
+    ROS_INFO_STREAM("  Joint velocities (first 3): " << qp.head<3>().transpose());
+  }
+
   // Store for monitoring
   pose_error_.head<3>() = e_pos;
   pose_error_.tail<3>() = e_ori;
 
+  // PDG (resolved-rate) control:
+  // q̇_r = J⁺(ẋ_d + Kp·e), τ = -Kd·(q̇ - q̇_r) [+ Kp_q·(q_ref - q)]
+
   // Compute desired Cartesian velocity with feedback
-  // ẋ_d_total = ẋ_d + Kp·e
   Eigen::Matrix<double, 6, 1> xdot_d_total = xdot_desired_;
-  xdot_d_total.head<3>() += Kp_pos_ * e_pos;
-  xdot_d_total.tail<3>() += Kp_ori_ * e_ori;
+  Eigen::Vector3d lin_velocity = xdot_desired_.head<3>() + Kp_pos_ * e_pos;
+  double lin_vel_norm = lin_velocity.norm();
+  if (lin_vel_norm > max_lin_velocity_)
+  {
+    lin_velocity *= (max_lin_velocity_ / lin_vel_norm);
+  }
+  xdot_d_total.head<3>() = lin_velocity;
 
-  // Compute pseudo-inverse of Jacobian
+  Eigen::Vector3d ori_velocity = Kp_ori_ * e_ori;
+  double ori_vel_norm = ori_velocity.norm();
+  if (ori_vel_norm > max_ori_velocity_)
+  {
+    ori_velocity *= (max_ori_velocity_ / ori_vel_norm);
+  }
+  xdot_d_total.tail<3>() += ori_velocity;
+
   Eigen::MatrixXd J_pinv = math_utils::pseudoInverse(J, damping_factor_);
-
-  // Compute reference joint velocity
-  // q̇_r = J⁺·ẋ_d_total
   Eigen::VectorXd qdot_ref = J_pinv * xdot_d_total;
-
-  // Clamp reference velocity
   qdot_ref = math_utils::clampAbs(qdot_ref, max_velocity_);
 
-  // PDG control law
-  // τ = -Kd·(q̇ - q̇_r) + Y_r
-  // Y_r = 0 for now (no gravity compensation)
+  // Integrate reference velocity to build a joint position reference
+  double t_now = time.tD();
+  if (!q_ref_initialized_)
+  {
+    q_ref_ = q;
+    last_time_ = t_now;
+    q_ref_initialized_ = true;
+  }
+  double dt = t_now - last_time_;
+  if (dt > 0.0 && dt < 0.1)
+  {
+    q_ref_ += qdot_ref * dt;
+  }
+  last_time_ = t_now;
+
   Eigen::VectorXd tau = -Kd_q_ * (qp - qdot_ref);
+  if (use_joint_p_)
+  {
+    tau += Kp_q_ * (q_ref_ - q);
+  }
 
-  // Clamp torque
+  if (use_task_pd_)
+  {
+    Eigen::Matrix<double, 6, 1> wrench;
+    wrench.head<3>() = task_pos_scale_ * (Kp_pos_ * e_pos);
+    wrench.tail<3>() = task_ori_scale_ * (Kp_ori_ * e_ori);
+    tau += J.transpose() * wrench;
+  }
+
+  // Gravity compensation
+  if (use_gravity_comp_ && dynamic_model_)
+  {
+    dynamic_model_->update(time, state);
+    tau += dynamic_model_->G();
+  }
+
+  if (debug_counter % 500 == 0)
+  {
+    ROS_INFO_STREAM("  qdot_ref (first 3): " << qdot_ref.head<3>().transpose());
+    ROS_INFO_STREAM("  tau (first 3): " << tau.head<3>().transpose());
+    ROS_INFO_STREAM("  qp (first 3): " << qp.head<3>().transpose());
+  }
+
   tau = math_utils::clampMagnitude(tau, max_torque_);
-
   return tau;
 }
 
@@ -252,6 +385,11 @@ bool CartesianPDGController::stop()
   {
     delete kinematic_model_;
     kinematic_model_ = nullptr;
+  }
+  if (dynamic_model_)
+  {
+    delete dynamic_model_;
+    dynamic_model_ = nullptr;
   }
 
   return true;

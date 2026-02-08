@@ -17,6 +17,9 @@
   <arg name="marker_hole_mesh_z_offset" default="-0.05"/>
   <arg name="marker_show_target" default="true"/>
   <arg name="marker_target_diameter" default="0.015"/>
+  <arg name="publish_base_link_tf" default="true"/>
+  <arg name="base_link_frame" default="base_link"/>
+  <arg name="robot_base_frame" default="ursa_base_link"/>
 
   <!-- The peg-in-hole FSM controller -->
   <node name="peg_in_hole_fsm" pkg="tum_ics_ur10_controller_tutorial" type="peg_in_hole_fsm_node" args="$(arg CONFIG_FILE_PATH)" output="screen">
@@ -42,6 +45,10 @@
     <rosparam file="$(find tum_ics_ur10_controller_tutorial)/config/sensors.yaml" command="load" />
 
   </node>
+
+  <!-- Ensure base_link exists in TF (alias to URSA base) -->
+  <node if="$(arg publish_base_link_tf)" pkg="tf2_ros" type="static_transform_publisher"
+        name="base_link_alias" args="0 0 0 0 0 0 $(arg robot_base_frame) $(arg base_link_frame)"/>
 
   <!-- RViz visualization helpers -->
   <include file="$(find tum_ics_ur10_controller_tutorial)/launch/peg_hole_markers.launch" if="$(arg show_markers)">
