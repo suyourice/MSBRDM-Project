@@ -12,6 +12,8 @@
   <arg name="hole_mesh_rpy_deg" default="[0.0, 0.0, 0.0]"/>
   <arg name="peg_mesh_z_offset" default="0.0"/>
   <arg name="hole_mesh_z_offset" default="0.0"/>
+  <arg name="show_target" default="true"/>
+  <arg name="target_diameter" default="0.015"/>
 
   <node name="peg_hole_markers" pkg="tum_ics_ur10_controller_tutorial"
         type="peg_hole_markers.py" output="screen">
@@ -27,5 +29,7 @@
     <param name="hole_mesh_rpy_deg" value="$(arg hole_mesh_rpy_deg)"/>
     <param name="peg_mesh_z_offset" value="$(arg peg_mesh_z_offset)"/>
     <param name="hole_mesh_z_offset" value="$(arg hole_mesh_z_offset)"/>
+    <param name="show_target" value="$(arg show_target)"/>
+    <param name="target_diameter" value="$(arg target_diameter)"/>
   </node>
 </launch>

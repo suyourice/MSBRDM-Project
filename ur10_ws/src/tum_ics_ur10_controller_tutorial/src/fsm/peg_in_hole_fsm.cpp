@@ -208,8 +208,9 @@ void PegInHoleFSM::transitionTo(State new_state)
       cartesian_ctrl_.callStart();
       Eigen::Affine3d target = Eigen::Affine3d::Identity();
       target.translation() = p_peg_;
-      target.translation().z() += 0.1;  // 10cm above
+      target.translation().z() += 0.1;
       target.linear() = R_peg_;
+      ROS_INFO_STREAM("MOVE_TO_PEG target position: " << target.translation().transpose());
       cartesian_ctrl_.setDesiredPose(target);
       break;
     }

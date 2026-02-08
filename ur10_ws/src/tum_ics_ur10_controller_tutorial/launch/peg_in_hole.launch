@@ -15,6 +15,8 @@
   <arg name="marker_hole_mesh_rpy_deg" default="[0.0, 0.0, 0.0]"/>
   <arg name="marker_peg_mesh_z_offset" default="-0.02"/>
   <arg name="marker_hole_mesh_z_offset" default="-0.05"/>
+  <arg name="marker_show_target" default="true"/>
+  <arg name="marker_target_diameter" default="0.015"/>
 
   <!-- The peg-in-hole FSM controller -->
   <node name="peg_in_hole_fsm" pkg="tum_ics_ur10_controller_tutorial" type="peg_in_hole_fsm_node" args="$(arg CONFIG_FILE_PATH)" output="screen">
@@ -52,6 +54,8 @@
     <arg name="hole_mesh_rpy_deg" value="$(arg marker_hole_mesh_rpy_deg)"/>
     <arg name="peg_mesh_z_offset" value="$(arg marker_peg_mesh_z_offset)"/>
     <arg name="hole_mesh_z_offset" value="$(arg marker_hole_mesh_z_offset)"/>
+    <arg name="show_target" value="$(arg marker_show_target)"/>
+    <arg name="target_diameter" value="$(arg marker_target_diameter)"/>
   </include>
 
 </launch>
