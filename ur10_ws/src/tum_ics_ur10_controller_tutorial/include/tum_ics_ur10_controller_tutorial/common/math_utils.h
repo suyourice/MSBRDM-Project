@@ -80,5 +80,17 @@ Eigen::VectorXd clampMagnitude(
   double max_mag
 );
 
+/**
+ * @brief Clamp each component to [-max_abs, max_abs]
+ *
+ * @param v Input vector
+ * @param max_abs Maximum absolute value per component
+ * @return Clamped vector
+ */
+Eigen::VectorXd clampAbs(
+  const Eigen::VectorXd& v,
+  double max_abs
+);
+
 } // namespace math_utils
 } // namespace tum_ics_ur10_controller_tutorial

@@ -197,6 +197,9 @@ void PegInHoleFSM::transitionTo(State new_state)
       break;
 
     case State::OPEN_GRIPPER:
+      // Hold the safe pose while opening to avoid free-fall
+      joint_ctrl_.callStart();
+      joint_ctrl_.setDesiredPosition(q_safe_);
       gripper_.open();
       break;
 
@@ -222,6 +225,9 @@ void PegInHoleFSM::transitionTo(State new_state)
     }
 
     case State::CLOSE_GRIPPER:
+      // Hold current peg pose while closing
+      cartesian_ctrl_.callStart();
+      cartesian_ctrl_.setDesiredPose(cartesian_ctrl_.getDesiredPose());
       gripper_.grasp(20.0);  // 20N grasping force
       break;
 
@@ -326,11 +332,19 @@ Tum::VectorDOFd PegInHoleFSM::update(const tum_ics_ur_robot_lli::RobotTime& time
       tau = joint_ctrl_.callUpdate(time, state);
       break;
 
+    case State::OPEN_GRIPPER:
+      tau = joint_ctrl_.callUpdate(time, state);
+      break;
+
     case State::MOVE_TO_PEG:
     case State::DESCEND_TO_PEG:
     case State::LIFT_PEG:
     case State::MOVE_ABOVE_HOLE:
     case State::ALIGN_ORIENTATION:
+      tau = cartesian_ctrl_.callUpdate(time, state);
+      break;
+
+    case State::CLOSE_GRIPPER:
       tau = cartesian_ctrl_.callUpdate(time, state);
       break;
 

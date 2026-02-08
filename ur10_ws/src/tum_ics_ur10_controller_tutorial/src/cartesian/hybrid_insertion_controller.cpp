@@ -112,25 +112,28 @@ bool HybridInsertionController::init()
   // Success criteria
   pnh.param(ns + "/force_drop_threshold", force_drop_threshold_, 3.0);
 
-  // Cartesian gains
   std::vector<double> kp_pos_vec;
   if (pnh.getParam(ns + "/Kp_pos", kp_pos_vec) && kp_pos_vec.size() == 3)
   {
     Kp_pos_ = Eigen::Vector3d(kp_pos_vec.data()).asDiagonal();
+    ROS_INFO_STREAM("Kp_pos loaded from YAML: " << kp_pos_vec[0] << ", " << kp_pos_vec[1] << ", " << kp_pos_vec[2]);
   }
   else
   {
-    Kp_pos_ *= 100.0;
+    Kp_pos_ *= 30.0;
+    ROS_WARN_STREAM("Kp_pos not found. Using default: 30.0");
   }
 
   std::vector<double> kp_ori_vec;
   if (pnh.getParam(ns + "/Kp_ori", kp_ori_vec) && kp_ori_vec.size() == 3)
   {
     Kp_ori_ = Eigen::Vector3d(kp_ori_vec.data()).asDiagonal();
+    ROS_INFO_STREAM("Kp_ori loaded from YAML: " << kp_ori_vec[0] << ", " << kp_ori_vec[1] << ", " << kp_ori_vec[2]);
   }
   else
   {
-    Kp_ori_ *= 50.0;
+    Kp_ori_ *= 20.0;
+    ROS_WARN_STREAM("Kp_ori not found. Using default: 20.0");
   }
 
   std::vector<double> kd_q_vec;
@@ -290,7 +293,7 @@ Tum::VectorDOFd HybridInsertionController::update(
 
   // Reference joint velocity
   Eigen::VectorXd qdot_ref = J_pinv * xdot_d;
-  qdot_ref = math_utils::clampMagnitude(qdot_ref, max_velocity_);
+  qdot_ref = math_utils::clampAbs(qdot_ref, max_velocity_);
 
   // Control law
   Eigen::VectorXd tau = -Kd_q_ * (state.qp - qdot_ref);

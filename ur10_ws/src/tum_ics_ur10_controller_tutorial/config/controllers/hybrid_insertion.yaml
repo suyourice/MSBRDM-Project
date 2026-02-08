@@ -32,9 +32,8 @@ hybrid_insertion_controller:
   # Units: Newtons
   force_drop_threshold: 3.0
 
-  # Cartesian gains
-  Kp_pos: [100.0, 100.0, 100.0]
-  Kp_ori: [50.0, 50.0, 50.0]
+  Kp_pos: [10.0, 10.0, 10.0]
+  Kp_ori: [10.0, 10.0, 10.0]
   Kd_q: [15.0, 15.0, 15.0, 10.0, 10.0, 10.0]
 
   # Limits

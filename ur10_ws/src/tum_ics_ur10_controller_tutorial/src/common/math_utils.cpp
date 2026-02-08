@@ -92,5 +92,20 @@ Eigen::VectorXd clampMagnitude(
   return v;
 }
 
+Eigen::VectorXd clampAbs(
+  const Eigen::VectorXd& v,
+  double max_abs)
+{
+  Eigen::VectorXd out = v;
+  for (int i = 0; i < out.size(); ++i)
+  {
+    if (out[i] > max_abs)
+      out[i] = max_abs;
+    else if (out[i] < -max_abs)
+      out[i] = -max_abs;
+  }
+  return out;
+}
+
 } // namespace math_utils
 } // namespace tum_ics_ur10_controller_tutorial

@@ -2,13 +2,8 @@
 # Control law: q̇_r = J⁺(ẋ_d + Kp·(x_d - x)), τ = -Kd·(q̇ - q̇_r)
 
 cartesian_pdg_controller:
-  # Position proportional gains (X, Y, Z)
-  # Units: 1/s (velocity feedback per meter error)
-  Kp_pos: [100.0, 100.0, 100.0]
-
-  # Orientation proportional gains (roll, pitch, yaw)
-  # Units: 1/s (angular velocity feedback per radian error)
-  Kp_ori: [50.0, 50.0, 50.0]
+  Kp_pos: [10.0, 10.0, 10.0]
+  Kp_ori: [10.0, 10.0, 10.0]
 
   # Joint space derivative gains
   # Units: Nms/rad

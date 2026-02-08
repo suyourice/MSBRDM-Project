@@ -85,23 +85,24 @@ bool CartesianPDGController::init()
   if (pnh.getParam(ns + "/Kp_pos", kp_pos_vec) && kp_pos_vec.size() == 3)
   {
     Kp_pos_ = Eigen::Vector3d(kp_pos_vec.data()).asDiagonal();
+    ROS_INFO_STREAM("Kp_pos loaded from YAML: " << kp_pos_vec[0] << ", " << kp_pos_vec[1] << ", " << kp_pos_vec[2]);
   }
   else
   {
-    ROS_WARN_STREAM("Kp_pos not found. Using default: 100.0");
-    Kp_pos_ *= 100.0;
+    ROS_WARN_STREAM("Kp_pos not found. Using default: 30.0");
+    Kp_pos_ *= 30.0;
   }
 
-  // Orientation gains
   std::vector<double> kp_ori_vec;
   if (pnh.getParam(ns + "/Kp_ori", kp_ori_vec) && kp_ori_vec.size() == 3)
   {
     Kp_ori_ = Eigen::Vector3d(kp_ori_vec.data()).asDiagonal();
+    ROS_INFO_STREAM("Kp_ori loaded from YAML: " << kp_ori_vec[0] << ", " << kp_ori_vec[1] << ", " << kp_ori_vec[2]);
   }
   else
   {
-    ROS_WARN_STREAM("Kp_ori not found. Using default: 50.0");
-    Kp_ori_ *= 50.0;
+    ROS_WARN_STREAM("Kp_ori not found. Using default: 20.0");
+    Kp_ori_ *= 20.0;
   }
 
   // Joint damping
@@ -229,7 +230,7 @@ Tum::VectorDOFd CartesianPDGController::update(
   Eigen::VectorXd qdot_ref = J_pinv * xdot_d_total;
 
   // Clamp reference velocity
-  qdot_ref = math_utils::clampMagnitude(qdot_ref, max_velocity_);
+  qdot_ref = math_utils::clampAbs(qdot_ref, max_velocity_);
 
   // PDG control law
   // τ = -Kd·(q̇ - q̇_r) + Y_r

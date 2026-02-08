@@ -262,7 +262,7 @@ Tum::VectorDOFd AdmittanceController::update(
 
   // Reference joint velocity
   Eigen::VectorXd qdot_ref = J_pinv * xdot_d;
-  qdot_ref = math_utils::clampMagnitude(qdot_ref, max_velocity_);
+  qdot_ref = math_utils::clampAbs(qdot_ref, max_velocity_);
 
   // Control law
   Eigen::VectorXd tau = -Kd_q_ * (state.qp - qdot_ref);
