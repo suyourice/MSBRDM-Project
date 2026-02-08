@@ -41,12 +41,13 @@ bool JointPDController::init()
   q_desired_ = Eigen::VectorXd::Zero(dof);
   q_error_ = Eigen::VectorXd::Zero(dof);
 
-  // Read parameters from ROS parameter server
-  std::string ns = "~joint_pd_controller";
+  // Read parameters from ROS parameter server (private namespace)
+  ros::NodeHandle pnh("~");
+  std::string ns = "joint_pd_controller";
 
   // Read Kp gains
   std::vector<double> kp_vec;
-  if (nh_.getParam(ns + "/Kp", kp_vec))
+  if (pnh.getParam(ns + "/Kp", kp_vec))
   {
     if (kp_vec.size() == static_cast<size_t>(dof))
     {
@@ -70,7 +71,7 @@ bool JointPDController::init()
 
   // Read Kd gains
   std::vector<double> kd_vec;
-  if (nh_.getParam(ns + "/Kd", kd_vec))
+  if (pnh.getParam(ns + "/Kd", kd_vec))
   {
     if (kd_vec.size() == static_cast<size_t>(dof))
     {
@@ -93,7 +94,7 @@ bool JointPDController::init()
   }
 
   // Read max torque limit
-  nh_.param(ns + "/max_torque", max_torque_, 50.0);
+  pnh.param(ns + "/max_torque", max_torque_, 50.0);
 
   // Note: q_desired_ will be set later (after setQHome() is called)
   // For now, initialize to zeros

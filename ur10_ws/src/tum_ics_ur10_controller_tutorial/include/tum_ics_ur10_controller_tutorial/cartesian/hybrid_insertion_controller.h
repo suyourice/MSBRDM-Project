@@ -60,6 +60,15 @@ public:
    */
   void reset();
 
+  // Public wrappers for FSM to call protected methods
+  bool callInit() { return init(); }
+  bool callStart() { return start(); }
+  Tum::VectorDOFd callUpdate(const tum_ics_ur_robot_lli::RobotTime& time,
+                             const tum_ics_ur_robot_lli::JointState& state) {
+    return update(time, state);
+  }
+  bool callStop() { return stop(); }
+
   // Additional pure virtuals from Controller base (public for FSM access)
   void setQInit(const tum_ics_ur_robot_lli::JointState& qinit) override;
   void setQHome(const tum_ics_ur_robot_lli::JointState& qhome) override;

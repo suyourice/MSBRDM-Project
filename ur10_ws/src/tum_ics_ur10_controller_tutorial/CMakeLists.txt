@@ -9,7 +9,9 @@ SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 find_package(catkin REQUIRED COMPONENTS
   tum_ics_ur_robot_msgs
   tum_ics_ur_robot_lli
+  tum_ics_lacquey_gripper_msgs
   roscpp
+  roslib
   sensor_msgs
   std_msgs
   tf
@@ -53,7 +55,7 @@ set(CMAKE_CXX_FLAGS "${Qt5Widgets_EXECUTABLE_COMPILE_FLAGS}")
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES my_robot_control_lli
-  CATKIN_DEPENDS tum_ics_ur_robot_msgs roscpp rospy sensor_msgs std_msgs tf tf_conversions visualization_msgs tum_ics_ur_robot_lli
+  CATKIN_DEPENDS tum_ics_ur_robot_msgs tum_ics_lacquey_gripper_msgs roscpp rospy roslib sensor_msgs std_msgs tf tf_conversions visualization_msgs tum_ics_ur_robot_lli
   DEPENDS ${DEPENDS_VAR}
 )
 
@@ -103,6 +105,7 @@ target_link_libraries(my_robot_control_lli
 )
 add_dependencies(my_robot_control_lli
     ${tum_ics_ur_robot_msgs_EXPORTED_TARGETS}
+    ${tum_ics_lacquey_gripper_msgs_EXPORTED_TARGETS}
     ${sensor_msgs_EXPORTED_TARGETS}
     ${std_msgs_EXPORTED_TARGETS}
     ${visualization_msgs_EXPORTED_TARGETS}
@@ -113,9 +116,9 @@ add_dependencies(my_robot_control_lli
 ##############################################################################
 
 set(APP_TARGETS
+  peg_in_hole_fsm_node
   # joint_pd_test_node
   # cartesian_pdg_test_node
-  # peg_in_hole_fsm_node
   # simple_effort_controller_node (moved to _old/)
   # operational_space_controller_node (moved to _old/)
 )
@@ -133,6 +136,7 @@ foreach(target ${APP_TARGETS})
         ${TMATH_LIBRARIES})
     add_dependencies(${target}
         ${tum_ics_ur_robot_msgs_EXPORTED_TARGETS}
+        ${tum_ics_lacquey_gripper_msgs_EXPORTED_TARGETS}
         ${sensor_msgs_EXPORTED_TARGETS}
         ${std_msgs_EXPORTED_TARGETS}
         ${visualization_msgs_EXPORTED_TARGETS}

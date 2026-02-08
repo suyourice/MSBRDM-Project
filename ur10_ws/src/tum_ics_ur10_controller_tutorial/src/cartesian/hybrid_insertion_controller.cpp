@@ -75,20 +75,21 @@ bool HybridInsertionController::init()
   Kp_ori_.setIdentity();
   Kd_q_ = Eigen::MatrixXd::Zero(dof, dof);
 
-  // Read parameters
-  std::string ns = "~hybrid_insertion_controller";
+  // Read parameters (private namespace)
+  ros::NodeHandle pnh("~");
+  std::string ns = "hybrid_insertion_controller";
 
   // Circular motion
-  nh_.param(ns + "/radius", radius_, 0.003);
-  nh_.param(ns + "/omega", omega_, 0.5);
+  pnh.param(ns + "/radius", radius_, 0.003);
+  pnh.param(ns + "/omega", omega_, 0.5);
 
   // Insertion
-  nh_.param(ns + "/v_insert", v_insert_, 0.002);
-  nh_.param(ns + "/z_target", z_target_, 0.025);
+  pnh.param(ns + "/v_insert", v_insert_, 0.002);
+  pnh.param(ns + "/z_target", z_target_, 0.025);
 
   // Admittance
   std::vector<double> mass_vec, damping_vec;
-  if (nh_.getParam(ns + "/mass_xy", mass_vec) && mass_vec.size() == 2)
+  if (pnh.getParam(ns + "/mass_xy", mass_vec) && mass_vec.size() == 2)
   {
     M_adm_(0, 0) = mass_vec[0];
     M_adm_(1, 1) = mass_vec[1];
@@ -98,7 +99,7 @@ bool HybridInsertionController::init()
     M_adm_ *= 0.5;
   }
 
-  if (nh_.getParam(ns + "/damping_xy", damping_vec) && damping_vec.size() == 2)
+  if (pnh.getParam(ns + "/damping_xy", damping_vec) && damping_vec.size() == 2)
   {
     D_adm_(0, 0) = damping_vec[0];
     D_adm_(1, 1) = damping_vec[1];
@@ -109,11 +110,11 @@ bool HybridInsertionController::init()
   }
 
   // Success criteria
-  nh_.param(ns + "/force_drop_threshold", force_drop_threshold_, 3.0);
+  pnh.param(ns + "/force_drop_threshold", force_drop_threshold_, 3.0);
 
   // Cartesian gains
   std::vector<double> kp_pos_vec;
-  if (nh_.getParam(ns + "/Kp_pos", kp_pos_vec) && kp_pos_vec.size() == 3)
+  if (pnh.getParam(ns + "/Kp_pos", kp_pos_vec) && kp_pos_vec.size() == 3)
   {
     Kp_pos_ = Eigen::Vector3d(kp_pos_vec.data()).asDiagonal();
   }
@@ -123,7 +124,7 @@ bool HybridInsertionController::init()
   }
 
   std::vector<double> kp_ori_vec;
-  if (nh_.getParam(ns + "/Kp_ori", kp_ori_vec) && kp_ori_vec.size() == 3)
+  if (pnh.getParam(ns + "/Kp_ori", kp_ori_vec) && kp_ori_vec.size() == 3)
   {
     Kp_ori_ = Eigen::Vector3d(kp_ori_vec.data()).asDiagonal();
   }
@@ -133,7 +134,7 @@ bool HybridInsertionController::init()
   }
 
   std::vector<double> kd_q_vec;
-  if (nh_.getParam(ns + "/Kd_q", kd_q_vec) && kd_q_vec.size() == static_cast<size_t>(dof))
+  if (pnh.getParam(ns + "/Kd_q", kd_q_vec) && kd_q_vec.size() == static_cast<size_t>(dof))
   {
     for (int i = 0; i < dof; ++i)
       Kd_q_(i, i) = kd_q_vec[i];
@@ -145,13 +146,13 @@ bool HybridInsertionController::init()
   }
 
   // Limits
-  nh_.param(ns + "/max_displacement", max_displacement_, 0.02);
-  nh_.param(ns + "/max_velocity", max_velocity_, 0.5);
-  nh_.param(ns + "/max_torque", max_torque_, 50.0);
-  nh_.param(ns + "/damping_factor", damping_factor_, 0.01);
+  pnh.param(ns + "/max_displacement", max_displacement_, 0.02);
+  pnh.param(ns + "/max_velocity", max_velocity_, 0.5);
+  pnh.param(ns + "/max_torque", max_torque_, 50.0);
+  pnh.param(ns + "/damping_factor", damping_factor_, 0.01);
 
   // Initialize F/T sensor
-  if (!ft_sensor_.init(nh_))
+  if (!ft_sensor_.init(pnh))
   {
     ROS_ERROR("Failed to initialize F/T sensor");
     return false;
@@ -159,7 +160,7 @@ bool HybridInsertionController::init()
 
   // Get config file path
   std::string config_file_path;
-  if (!nh_.getParam("/ur_config_file", config_file_path))
+  if (!pnh.getParam("/ur_config_file", config_file_path))
   {
     config_file_path = ros::package::getPath("tum_ics_ur10_controller_tutorial") +
                        "/launch/configs/configUR10.ini";

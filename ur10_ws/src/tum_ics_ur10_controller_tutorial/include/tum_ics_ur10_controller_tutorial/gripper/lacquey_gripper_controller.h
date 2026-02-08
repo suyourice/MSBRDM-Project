@@ -2,6 +2,7 @@
 
 #include <ros/ros.h>
 #include <std_msgs/Float64.h>
+#include <tum_ics_lacquey_gripper_msgs/setGripperState.h>
 
 namespace tum_ics_ur10_controller_tutorial
 {
@@ -65,9 +66,11 @@ private:
   ros::Publisher width_cmd_pub_;
   ros::Publisher force_cmd_pub_;
   ros::Subscriber state_sub_;
+  ros::ServiceClient set_state_client_;
 
   // State callback
   void stateCallback(const std_msgs::Float64::ConstPtr& msg);
+  bool sendStateCommand(const std::string& cmd);
 
   // Configuration
   double open_width_;    // Maximum open width (m)
@@ -82,6 +85,9 @@ private:
   std::string width_topic_;
   std::string force_topic_;
   std::string state_topic_;
+  std::string service_name_;
+
+  bool use_service_;
 };
 
 } // namespace tum_ics_ur10_controller_tutorial

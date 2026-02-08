@@ -14,7 +14,8 @@ PegInHoleFSM::PegInHoleFSM(double weight, const QString& name)
     state_(State::INIT),
     retry_count_(0),
     max_retries_(3),
-    use_aruco_(false)
+    use_aruco_(false),
+    has_q_home_param_(false)
 {
 }
 
@@ -50,27 +51,30 @@ bool PegInHoleFSM::init()
     return false;
   }
 
-  // Read waypoints from config
-  std::string ns = "~peg_in_hole_fsm";
+  // Read waypoints from config (private namespace)
+  ros::NodeHandle pnh("~");
+  std::string ns = "peg_in_hole_fsm";
 
   // Home position
   std::vector<double> q_home_vec;
-  if (nh_.getParam(ns + "/q_home", q_home_vec))
+  if (pnh.getParam(ns + "/q_home", q_home_vec))
   {
     q_home_ = Eigen::VectorXd(q_home_vec.size());
     for (size_t i = 0; i < q_home_vec.size(); ++i)
       q_home_(i) = q_home_vec[i] * M_PI / 180.0;  // Convert deg to rad
+    has_q_home_param_ = true;
   }
   else
   {
     // Default home position (all zeros)
     q_home_ = Eigen::VectorXd::Zero(6);
     ROS_WARN("Home position not specified, using zeros");
+    has_q_home_param_ = false;
   }
 
   // Peg position
   std::vector<double> p_peg_vec;
-  if (nh_.getParam(ns + "/p_peg", p_peg_vec) && p_peg_vec.size() == 3)
+  if (pnh.getParam(ns + "/p_peg", p_peg_vec) && p_peg_vec.size() == 3)
   {
     p_peg_ = Eigen::Vector3d(p_peg_vec.data());
   }
@@ -82,7 +86,7 @@ bool PegInHoleFSM::init()
 
   // Hole position
   std::vector<double> p_hole_vec;
-  if (nh_.getParam(ns + "/p_hole", p_hole_vec) && p_hole_vec.size() == 3)
+  if (pnh.getParam(ns + "/p_hole", p_hole_vec) && p_hole_vec.size() == 3)
   {
     p_hole_ = Eigen::Vector3d(p_hole_vec.data());
   }
@@ -94,7 +98,7 @@ bool PegInHoleFSM::init()
 
   // Peg orientation (RPY in degrees)
   std::vector<double> rpy_vec;
-  if (nh_.getParam(ns + "/peg_orientation", rpy_vec) && rpy_vec.size() == 3)
+  if (pnh.getParam(ns + "/peg_orientation", rpy_vec) && rpy_vec.size() == 3)
   {
     double roll = rpy_vec[0] * M_PI / 180.0;
     double pitch = rpy_vec[1] * M_PI / 180.0;
@@ -122,11 +126,11 @@ bool PegInHoleFSM::init()
   state_timeouts_[State::CIRCULAR_INSERTION] = 30.0;
 
   // Other parameters
-  nh_.param(ns + "/max_retries", max_retries_, 3);
-  nh_.param(ns + "/use_aruco", use_aruco_, false);
+  pnh.param(ns + "/max_retries", max_retries_, 3);
+  pnh.param(ns + "/use_aruco", use_aruco_, false);
 
   // Initialize gripper
-  if (!gripper_.init(nh_))
+  if (!gripper_.init(pnh))
   {
     ROS_ERROR("Failed to initialize gripper");
     return false;
@@ -299,7 +303,7 @@ Tum::VectorDOFd PegInHoleFSM::update(const tum_ics_ur_robot_lli::RobotTime& time
     switch (state_)
     {
       case State::HOME:
-        transitionTo(State::OPEN_GRIPPER);
+      transitionTo(State::OPEN_GRIPPER);
         break;
 
       case State::OPEN_GRIPPER:
@@ -413,8 +417,11 @@ void PegInHoleFSM::setQHome(const tum_ics_ur_robot_lli::JointState& qhome)
   cartesian_ctrl_.setQHome(qhome);
   insertion_ctrl_.setQHome(qhome);
 
-  // Use stored q_home for FSM waypoint
-  q_home_ = qhome.q;
+  // Use YAML q_home if provided; otherwise fall back to robot qhome
+  if (!has_q_home_param_)
+  {
+    q_home_ = qhome.q;
+  }
 
   ROS_INFO_STREAM("PegInHoleFSM::setQHome() - stored and propagated to sub-controllers");
 }

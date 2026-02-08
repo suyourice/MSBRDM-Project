@@ -76,12 +76,13 @@ bool CartesianPDGController::init()
   Kp_ori_.setIdentity();
   Kd_q_ = Eigen::MatrixXd::Zero(dof, dof);
 
-  // Read parameters from ROS
-  std::string ns = "~cartesian_pdg_controller";
+  // Read parameters from ROS (private namespace)
+  ros::NodeHandle pnh("~");
+  std::string ns = "cartesian_pdg_controller";
 
   // Position gains
   std::vector<double> kp_pos_vec;
-  if (nh_.getParam(ns + "/Kp_pos", kp_pos_vec) && kp_pos_vec.size() == 3)
+  if (pnh.getParam(ns + "/Kp_pos", kp_pos_vec) && kp_pos_vec.size() == 3)
   {
     Kp_pos_ = Eigen::Vector3d(kp_pos_vec.data()).asDiagonal();
   }
@@ -93,7 +94,7 @@ bool CartesianPDGController::init()
 
   // Orientation gains
   std::vector<double> kp_ori_vec;
-  if (nh_.getParam(ns + "/Kp_ori", kp_ori_vec) && kp_ori_vec.size() == 3)
+  if (pnh.getParam(ns + "/Kp_ori", kp_ori_vec) && kp_ori_vec.size() == 3)
   {
     Kp_ori_ = Eigen::Vector3d(kp_ori_vec.data()).asDiagonal();
   }
@@ -105,7 +106,7 @@ bool CartesianPDGController::init()
 
   // Joint damping
   std::vector<double> kd_q_vec;
-  if (nh_.getParam(ns + "/Kd_q", kd_q_vec) && kd_q_vec.size() == static_cast<size_t>(dof))
+  if (pnh.getParam(ns + "/Kd_q", kd_q_vec) && kd_q_vec.size() == static_cast<size_t>(dof))
   {
     for (int i = 0; i < dof; ++i)
       Kd_q_(i, i) = kd_q_vec[i];
@@ -118,13 +119,13 @@ bool CartesianPDGController::init()
   }
 
   // Limits
-  nh_.param(ns + "/max_velocity", max_velocity_, 0.5);
-  nh_.param(ns + "/max_torque", max_torque_, 50.0);
-  nh_.param(ns + "/damping_factor", damping_factor_, 0.01);
+  pnh.param(ns + "/max_velocity", max_velocity_, 0.5);
+  pnh.param(ns + "/max_torque", max_torque_, 50.0);
+  pnh.param(ns + "/damping_factor", damping_factor_, 0.01);
 
   // Get config file path from ROS parameter
   std::string config_file_path;
-  if (!nh_.getParam("/ur_config_file", config_file_path))
+  if (!pnh.getParam("/ur_config_file", config_file_path))
   {
     // Default path
     config_file_path = ros::package::getPath("tum_ics_ur10_controller_tutorial") +

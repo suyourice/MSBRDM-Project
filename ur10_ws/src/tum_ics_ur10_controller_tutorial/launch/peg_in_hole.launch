@@ -4,9 +4,16 @@
 
   <!-- UR10 settings -->
   <arg name="CONFIG_FILE_PATH" default="$(find tum_ics_ur10_controller_tutorial)/launch/configs/configUR10.ini"/>
+  <arg name="startup_delay" default="5.0"/>
 
   <!-- The peg-in-hole FSM controller -->
   <node name="peg_in_hole_fsm" pkg="tum_ics_ur10_controller_tutorial" type="peg_in_hole_fsm_node" args="$(arg CONFIG_FILE_PATH)" output="screen">
+    <param name="startup_delay" value="$(arg startup_delay)"/>
+    <!-- avoid /joint_states collision with bringup -->
+    <remap from="/joint_states" to="/ursa_joint_states"/>
+
+    <!-- Robot PID gains (must be in private namespace: ~pid_int) -->
+    <rosparam file="$(find tum_ics_ur10_controller_tutorial)/config/robot_pid_array.yaml" command="load" />
 
     <!-- FSM configuration -->
     <rosparam file="$(find tum_ics_ur10_controller_tutorial)/config/peg_in_hole_fsm.yaml" command="load" />

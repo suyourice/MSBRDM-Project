@@ -1,0 +1,14 @@
+# PID Controller Gains - Array format
+# RobotArm might expect this format instead
+
+pid_int:
+  # LLI expects gains_* arrays under ~pid_int
+  gains_p: [1000.0, 1000.0, 1000.0, 500.0, 500.0, 500.0]
+  gains_i: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  gains_d: [50.0, 50.0, 50.0, 25.0, 25.0, 25.0]
+
+  # Keep legacy keys for compatibility with local controllers (if any)
+  p: [1000.0, 1000.0, 1000.0, 500.0, 500.0, 500.0]
+  i: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  d: [50.0, 50.0, 50.0, 25.0, 25.0, 25.0]
+  i_clamp: [100.0, 100.0, 100.0, 50.0, 50.0, 50.0]

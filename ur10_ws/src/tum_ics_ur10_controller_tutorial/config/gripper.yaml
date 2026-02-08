@@ -22,6 +22,10 @@ gripper:
   force_topic: "/lacquey_gripper/force_cmd"
   state_topic: "/lacquey_gripper/state"
 
+  # Service-based driver (recommended for Lacquey gripper simulation)
+  use_service: true
+  service_name: "/setGripperState"
+
   # Tolerance for "at target" check
   # Units: meters
   position_tolerance: 0.005  # 5mm

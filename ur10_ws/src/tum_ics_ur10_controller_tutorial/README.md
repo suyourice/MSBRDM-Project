@@ -2,6 +2,32 @@
 
 A modular, extensible controller framework for precision assembly tasks using the Universal Robots UR10.
 
+## 🚀 Quick Start
+
+### Run Simulation
+
+```bash
+# Terminal 1: Launch Gazebo
+roslaunch tum_ics_ur10_bringup ur10_ft_lacquey_gazebo.launch
+
+# Terminal 2: Run FSM controller
+roslaunch tum_ics_ur10_controller_tutorial peg_in_hole.launch
+
+# Terminal 3 (optional): RViz visualization
+rosrun rviz rviz
+```
+
+### 📖 Full Simulation Guide
+
+**→ See [SIMULATION_GUIDE.md](SIMULATION_GUIDE.md) for detailed instructions on:**
+- Step-by-step setup
+- Parameter tuning for each controller
+- Debugging common issues
+- Performance optimization
+- Testing strategy
+
+---
+
 ## Overview
 
 This package implements a complete control system for the peg-in-hole assembly task, combining:
@@ -123,17 +149,39 @@ states:
 
 ```bash
 cd ur10_ws
-catkin build tum_ics_ur10_controller_tutorial
+catkin build -DTUM_ICS_USE_QT5=1
 source devel/setup.bash
 ```
 
+**Note:** The `-DTUM_ICS_USE_QT5=1` flag is required for Qt5 support.
+
 ## Usage
 
-Launch the peg-in-hole controller:
+### Simulation
 
 ```bash
+# 1. Launch Gazebo with UR10 model
+roslaunch tum_ics_ur10_bringup ur10_ft_lacquey_gazebo.launch
+
+# 2. Launch FSM controller
 roslaunch tum_ics_ur10_controller_tutorial peg_in_hole.launch
 ```
+
+### Real Hardware
+
+```bash
+# 1. Connect to real UR10 + F/T sensor + Lacquey gripper
+roslaunch tum_ics_ur10_bringup bringUR10-FT-lacquey.launch
+
+# 2. Launch FSM controller (same as simulation)
+roslaunch tum_ics_ur10_controller_tutorial peg_in_hole.launch
+```
+
+**⚠️ Warning:** Re-tune controller gains before running on real hardware! Simulation gains may be too aggressive.
+
+### Tuning Parameters
+
+See [SIMULATION_GUIDE.md](SIMULATION_GUIDE.md) for comprehensive tuning instructions.
 
 ## Math Utilities
 

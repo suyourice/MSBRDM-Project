@@ -59,17 +59,17 @@ public:
    */
   std::string getStateName() const;
 
+  // Additional pure virtuals from Controller base (PUBLIC for RobotArm to call)
+  void setQInit(const tum_ics_ur_robot_lli::JointState& qinit) override;
+  void setQHome(const tum_ics_ur_robot_lli::JointState& qhome) override;
+  void setQPark(const tum_ics_ur_robot_lli::JointState& qpark) override;
+
 protected:
   bool init() override;
   bool start() override;
   Tum::VectorDOFd update(const tum_ics_ur_robot_lli::RobotTime& time,
                          const tum_ics_ur_robot_lli::JointState& state) override;
   bool stop() override;
-
-  // Additional pure virtuals from Controller base
-  void setQInit(const tum_ics_ur_robot_lli::JointState& qinit) override;
-  void setQHome(const tum_ics_ur_robot_lli::JointState& qhome) override;
-  void setQPark(const tum_ics_ur_robot_lli::JointState& qpark) override;
 
 private:
   // State transition logic
@@ -100,6 +100,7 @@ private:
   Eigen::Vector3d p_peg_;
   Eigen::Vector3d p_hole_;
   Eigen::Matrix3d R_peg_;
+  bool has_q_home_param_;
 
   // Retry logic
   int retry_count_;

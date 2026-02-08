@@ -5,8 +5,9 @@
   <arg name="ROBOT_IP_ADDR" default="192.168.1.10"/>
   <arg name="GRIPPER_PORT" default="50003"/>
   <arg name="GRIPPER_PREFIX" default="ursa_"/>
+  <arg name="REAL_GRIPPER" default="true"/>
 
-  <param name="realRobot" value="true" />
+  <param name="realRobot" value="$(arg REAL_GRIPPER)" />
 
   <node name="gripper_driver" 
   	pkg="tum_ics_lacquey_gripper_driver" 

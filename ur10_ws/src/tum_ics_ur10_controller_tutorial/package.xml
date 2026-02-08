@@ -49,12 +49,14 @@
   <build_depend>cellularskin_msgs</build_depend-->
   <build_depend>tum_ics_ur_robot_msgs</build_depend>
   <build_depend>tum_ics_ur_robot_lli</build_depend>
+  <build_depend>tum_ics_lacquey_gripper_msgs</build_depend>
   <!--build_depend>tum_ics_ur_robot_controllers</build_depend-->
 
   <build_depend>libpcl-all-dev</build_depend>
   <build_depend>pcl_msgs</build_depend>
 
   <build_depend>roscpp</build_depend>
+  <build_depend>roslib</build_depend>
   <build_depend>libqt4-dev</build_depend>
   <build_depend>rospy</build_depend>
   <build_depend>sensor_msgs</build_depend>
@@ -80,12 +82,14 @@
 
   <run_depend>tum_ics_ur_robot_msgs</run_depend>
   <run_depend>tum_ics_ur_robot_lli</run_depend>
+  <run_depend>tum_ics_lacquey_gripper_msgs</run_depend>
   <!--run_depend>tum_ics_ur_robot_controllers</run_depend-->
 
   <run_depend>libpcl-all</run_depend>
   <run_depend>pcl_msgs</run_depend>
 
   <run_depend>roscpp</run_depend>
+  <run_depend>roslib</run_depend>
   <run_depend>libqt4-dev</run_depend>
   <run_depend>rospy</run_depend>
   <run_depend>sensor_msgs</run_depend>

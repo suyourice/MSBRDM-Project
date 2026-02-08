@@ -3,7 +3,7 @@
 peg_in_hole_fsm:
   # Home position (joint angles in degrees)
   # Default: robot's qHome() if not specified
-  q_home: [0, -90, 90, -90, -90, 0]
+  q_home: [0, 0, 0, 0, 0, 0]
 
   # Peg position (x, y, z in meters)
   # Example: peg on table
