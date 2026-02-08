@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="frame_id" default="base_link"/>
+  <arg name="topic" default="/peg_hole_markers"/>
+  <arg name="rate" default="10.0"/>
+  <arg name="fsm_ns" default="/peg_in_hole_fsm/peg_in_hole_fsm"/>
+  <arg name="use_mesh" default="false"/>
+  <arg name="mesh_scale" default="0.001"/>
+  <arg name="peg_mesh" default=""/>
+  <arg name="hole_mesh" default=""/>
+  <arg name="peg_mesh_rpy_deg" default="[0.0, 0.0, 0.0]"/>
+  <arg name="hole_mesh_rpy_deg" default="[0.0, 0.0, 0.0]"/>
+  <arg name="peg_mesh_z_offset" default="0.0"/>
+  <arg name="hole_mesh_z_offset" default="0.0"/>
+
+  <node name="peg_hole_markers" pkg="tum_ics_ur10_controller_tutorial"
+        type="peg_hole_markers.py" output="screen">
+    <param name="frame_id" value="$(arg frame_id)"/>
+    <param name="topic" value="$(arg topic)"/>
+    <param name="rate" value="$(arg rate)"/>
+    <param name="fsm_ns" value="$(arg fsm_ns)"/>
+    <param name="use_mesh" value="$(arg use_mesh)"/>
+    <param name="mesh_scale" value="$(arg mesh_scale)"/>
+    <param name="peg_mesh" value="$(arg peg_mesh)"/>
+    <param name="hole_mesh" value="$(arg hole_mesh)"/>
+    <param name="peg_mesh_rpy_deg" value="$(arg peg_mesh_rpy_deg)"/>
+    <param name="hole_mesh_rpy_deg" value="$(arg hole_mesh_rpy_deg)"/>
+    <param name="peg_mesh_z_offset" value="$(arg peg_mesh_z_offset)"/>
+    <param name="hole_mesh_z_offset" value="$(arg hole_mesh_z_offset)"/>
+  </node>
+</launch>

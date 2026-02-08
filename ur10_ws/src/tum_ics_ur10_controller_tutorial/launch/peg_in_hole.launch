@@ -5,6 +5,16 @@
   <!-- UR10 settings -->
   <arg name="CONFIG_FILE_PATH" default="$(find tum_ics_ur10_controller_tutorial)/launch/configs/configUR10.ini"/>
   <arg name="startup_delay" default="5.0"/>
+  <arg name="show_markers" default="true"/>
+  <arg name="marker_frame" default="ursa_base_link"/>
+  <arg name="marker_use_mesh" default="true"/>
+  <arg name="marker_mesh_scale" default="0.001"/>
+  <arg name="marker_peg_mesh" default="package://tum_ics_ur10_simulation_objects/models/peg/meshes/object_cylinder.stl"/>
+  <arg name="marker_hole_mesh" default="package://tum_ics_ur10_simulation_objects/models/hole/meshes/base_slot_cylinder.stl"/>
+  <arg name="marker_peg_mesh_rpy_deg" default="[0.0, 0.0, 0.0]"/>
+  <arg name="marker_hole_mesh_rpy_deg" default="[0.0, 0.0, 0.0]"/>
+  <arg name="marker_peg_mesh_z_offset" default="-0.02"/>
+  <arg name="marker_hole_mesh_z_offset" default="-0.05"/>
 
   <!-- The peg-in-hole FSM controller -->
   <node name="peg_in_hole_fsm" pkg="tum_ics_ur10_controller_tutorial" type="peg_in_hole_fsm_node" args="$(arg CONFIG_FILE_PATH)" output="screen">
@@ -30,5 +40,18 @@
     <rosparam file="$(find tum_ics_ur10_controller_tutorial)/config/sensors.yaml" command="load" />
 
   </node>
+
+  <!-- RViz visualization helpers -->
+  <include file="$(find tum_ics_ur10_controller_tutorial)/launch/peg_hole_markers.launch" if="$(arg show_markers)">
+    <arg name="frame_id" value="$(arg marker_frame)"/>
+    <arg name="use_mesh" value="$(arg marker_use_mesh)"/>
+    <arg name="mesh_scale" value="$(arg marker_mesh_scale)"/>
+    <arg name="peg_mesh" value="$(arg marker_peg_mesh)"/>
+    <arg name="hole_mesh" value="$(arg marker_hole_mesh)"/>
+    <arg name="peg_mesh_rpy_deg" value="$(arg marker_peg_mesh_rpy_deg)"/>
+    <arg name="hole_mesh_rpy_deg" value="$(arg marker_hole_mesh_rpy_deg)"/>
+    <arg name="peg_mesh_z_offset" value="$(arg marker_peg_mesh_z_offset)"/>
+    <arg name="hole_mesh_z_offset" value="$(arg marker_hole_mesh_z_offset)"/>
+  </include>
 
 </launch>
