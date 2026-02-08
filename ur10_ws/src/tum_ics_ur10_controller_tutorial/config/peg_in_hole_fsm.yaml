@@ -1,9 +1,10 @@
 # Peg-in-Hole Finite State Machine Configuration
 
 peg_in_hole_fsm:
-  # Home position (joint angles in degrees)
-  # Default: robot's qHome() if not specified
-  q_home: [0, 0, 0, 0, 0, 0]
+  # Safe position (joint angles in degrees)
+  # User-defined safe starting position for FSM
+  # Robot will smoothly interpolate from initial state to this position
+  q_safe: [0, -90, 72, -90, -90, 0]
 
   # Peg position (x, y, z in meters)
   # Example: peg on table

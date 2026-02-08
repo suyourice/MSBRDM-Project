@@ -15,7 +15,7 @@ PegInHoleFSM::PegInHoleFSM(double weight, const QString& name)
     retry_count_(0),
     max_retries_(3),
     use_aruco_(false),
-    has_q_home_param_(false)
+    has_q_safe_param_(false)
 {
 }
 
@@ -24,7 +24,7 @@ std::string PegInHoleFSM::getStateName() const
   switch (state_)
   {
     case State::INIT: return "INIT";
-    case State::HOME: return "HOME";
+    case State::MOVE_TO_SAFE: return "MOVE_TO_SAFE";
     case State::OPEN_GRIPPER: return "OPEN_GRIPPER";
     case State::MOVE_TO_PEG: return "MOVE_TO_PEG";
     case State::DESCEND_TO_PEG: return "DESCEND_TO_PEG";
@@ -55,21 +55,23 @@ bool PegInHoleFSM::init()
   ros::NodeHandle pnh("~");
   std::string ns = "peg_in_hole_fsm";
 
-  // Home position
-  std::vector<double> q_home_vec;
-  if (pnh.getParam(ns + "/q_home", q_home_vec))
+  // Safe position (user-defined starting position)
+  std::vector<double> q_safe_vec;
+  if (pnh.getParam(ns + "/q_safe", q_safe_vec))
   {
-    q_home_ = Eigen::VectorXd(q_home_vec.size());
-    for (size_t i = 0; i < q_home_vec.size(); ++i)
-      q_home_(i) = q_home_vec[i] * M_PI / 180.0;  // Convert deg to rad
-    has_q_home_param_ = true;
+    q_safe_ = Eigen::VectorXd(q_safe_vec.size());
+    for (size_t i = 0; i < q_safe_vec.size(); ++i)
+      q_safe_(i) = q_safe_vec[i] * M_PI / 180.0;  // Convert deg to rad
+    has_q_safe_param_ = true;
+    ROS_INFO_STREAM("Using q_safe from YAML [deg]: "
+                    << Eigen::Map<Eigen::VectorXd>(q_safe_vec.data(), q_safe_vec.size()).transpose());
   }
   else
   {
-    // Default home position (all zeros)
-    q_home_ = Eigen::VectorXd::Zero(6);
-    ROS_WARN("Home position not specified, using zeros");
-    has_q_home_param_ = false;
+    // Default safe position (all zeros)
+    q_safe_ = Eigen::VectorXd::Zero(6);
+    ROS_WARN("Safe position not specified, using zeros");
+    has_q_safe_param_ = false;
   }
 
   // Peg position
@@ -115,7 +117,7 @@ bool PegInHoleFSM::init()
   }
 
   // State timeouts
-  state_timeouts_[State::HOME] = 10.0;
+  state_timeouts_[State::MOVE_TO_SAFE] = 10.0;
   state_timeouts_[State::OPEN_GRIPPER] = 2.0;
   state_timeouts_[State::MOVE_TO_PEG] = 15.0;
   state_timeouts_[State::DESCEND_TO_PEG] = 10.0;
@@ -136,6 +138,24 @@ bool PegInHoleFSM::init()
     return false;
   }
 
+  // If q_safe was loaded from YAML, propagate to sub-controllers now
+  if (has_q_safe_param_)
+  {
+    // Create JointState with YAML q_safe
+    tum_ics_ur_robot_lli::JointState q_safe_state;
+    q_safe_state.q = q_safe_;
+    q_safe_state.qp = Eigen::VectorXd::Zero(q_safe_.size());
+    q_safe_state.qpp = Eigen::VectorXd::Zero(q_safe_.size());
+    q_safe_state.tau = Eigen::VectorXd::Zero(q_safe_.size());
+
+    q_home_stored_ = q_safe_state;  // Store as home for sub-controllers
+    joint_ctrl_.setQHome(q_safe_state);
+    cartesian_ctrl_.setQHome(q_safe_state);
+    insertion_ctrl_.setQHome(q_safe_state);
+
+    ROS_INFO_STREAM("Propagated YAML q_safe to sub-controllers [rad]: " << q_safe_.transpose());
+  }
+
   ROS_INFO_STREAM("PegInHoleFSM initialized");
   ROS_INFO_STREAM("  Peg position: " << p_peg_.transpose());
   ROS_INFO_STREAM("  Hole position: " << p_hole_.transpose());
@@ -149,7 +169,7 @@ bool PegInHoleFSM::start()
   ROS_INFO_STREAM("PegInHoleFSM::start()");
 
   retry_count_ = 0;
-  transitionTo(State::HOME);
+  transitionTo(State::MOVE_TO_SAFE);
 
   return true;
 }
@@ -171,9 +191,9 @@ void PegInHoleFSM::transitionTo(State new_state)
   // State entry actions
   switch (state_)
   {
-    case State::HOME:
+    case State::MOVE_TO_SAFE:
       joint_ctrl_.callStart();
-      joint_ctrl_.setDesiredPosition(q_home_);
+      joint_ctrl_.setDesiredPosition(q_safe_);
       break;
 
     case State::OPEN_GRIPPER:
@@ -269,7 +289,7 @@ bool PegInHoleFSM::checkStateComplete()
   // State-specific completion checks
   switch (state_)
   {
-    case State::HOME:
+    case State::MOVE_TO_SAFE:
       return joint_ctrl_.isAtTarget();
 
     case State::MOVE_TO_PEG:
@@ -297,13 +317,39 @@ Tum::VectorDOFd PegInHoleFSM::update(const tum_ics_ur_robot_lli::RobotTime& time
   // Update time tracking
   last_time_ = time;
 
-  // State machine logic - check for transitions
+  // Generate control torques based on current state
+  Eigen::VectorXd tau = Eigen::VectorXd::Zero(state.q.size());
+
+  switch (state_)
+  {
+    case State::MOVE_TO_SAFE:
+      tau = joint_ctrl_.callUpdate(time, state);
+      break;
+
+    case State::MOVE_TO_PEG:
+    case State::DESCEND_TO_PEG:
+    case State::LIFT_PEG:
+    case State::MOVE_ABOVE_HOLE:
+    case State::ALIGN_ORIENTATION:
+      tau = cartesian_ctrl_.callUpdate(time, state);
+      break;
+
+    case State::CIRCULAR_INSERTION:
+      tau = insertion_ctrl_.callUpdate(time, state);
+      break;
+
+    default:
+      tau.setZero();
+      break;
+  }
+
+  // State machine logic - check for transitions AFTER update (uses fresh errors)
   if (checkStateComplete())
   {
     switch (state_)
     {
-      case State::HOME:
-      transitionTo(State::OPEN_GRIPPER);
+      case State::MOVE_TO_SAFE:
+        transitionTo(State::OPEN_GRIPPER);
         break;
 
       case State::OPEN_GRIPPER:
@@ -366,32 +412,6 @@ Tum::VectorDOFd PegInHoleFSM::update(const tum_ics_ur_robot_lli::RobotTime& time
     }
   }
 
-  // Generate control torques based on current state
-  Eigen::VectorXd tau = Eigen::VectorXd::Zero(state.q.size());
-
-  switch (state_)
-  {
-    case State::HOME:
-      tau = joint_ctrl_.callUpdate(time, state);
-      break;
-
-    case State::MOVE_TO_PEG:
-    case State::DESCEND_TO_PEG:
-    case State::LIFT_PEG:
-    case State::MOVE_ABOVE_HOLE:
-    case State::ALIGN_ORIENTATION:
-      tau = cartesian_ctrl_.callUpdate(time, state);
-      break;
-
-    case State::CIRCULAR_INSERTION:
-      tau = insertion_ctrl_.callUpdate(time, state);
-      break;
-
-    default:
-      tau.setZero();
-      break;
-  }
-
   return tau;
 }
 
@@ -417,10 +437,10 @@ void PegInHoleFSM::setQHome(const tum_ics_ur_robot_lli::JointState& qhome)
   cartesian_ctrl_.setQHome(qhome);
   insertion_ctrl_.setQHome(qhome);
 
-  // Use YAML q_home if provided; otherwise fall back to robot qhome
-  if (!has_q_home_param_)
+  // Use YAML q_safe if provided; otherwise fall back to robot qhome
+  if (!has_q_safe_param_)
   {
-    q_home_ = qhome.q;
+    q_safe_ = qhome.q;
   }
 
   ROS_INFO_STREAM("PegInHoleFSM::setQHome() - stored and propagated to sub-controllers");

@@ -37,7 +37,7 @@ int main(int argc, char** argv)
   ROS_INFO("Creating PegInHoleFSM controller");
   tum_ics_ur10_controller_tutorial::PegInHoleFSM fsm(1.0, "PegInHoleFSM");
 
-  // Add controller to robot (this connects them)
+  // Add controller to robot (this connects them and calls init())
   ROS_INFO("Adding controller to robot");
   if (!robot.add(&fsm))
   {
@@ -45,8 +45,10 @@ int main(int argc, char** argv)
     return -1;
   }
 
-  // Set home/park positions
-  ROS_INFO("Setting home and park positions");
+  // Set home/park positions (only if not loaded from YAML)
+  // Note: robot.add() already called init(), which loaded YAML params
+  ROS_INFO("Setting home and park positions from robot defaults");
+  ROS_INFO("  (These will be ignored if YAML q_home was loaded)");
   fsm.setQHome(robot.qHome());
   fsm.setQPark(robot.qPark());
 

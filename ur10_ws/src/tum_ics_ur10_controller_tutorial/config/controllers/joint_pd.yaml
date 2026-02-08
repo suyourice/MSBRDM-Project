@@ -17,3 +17,7 @@ joint_pd_controller:
   # Position tolerance for "at target" check
   # Units: rad
   position_tolerance: 0.05  # ~2.9 degrees
+
+  # Transition time for smooth interpolation to target
+  # Units: seconds
+  transition_time: 5.0  # 5 seconds for smooth transition

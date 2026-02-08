@@ -68,7 +68,15 @@ private:
   Eigen::MatrixXd Kd_;  // Derivative gain
 
   // Target position
-  Eigen::VectorXd q_desired_;
+  Eigen::VectorXd q_desired_;       // Current interpolated target
+  Eigen::VectorXd q_target_;        // Final target position
+
+  // Interpolation for smooth transition
+  Eigen::VectorXd q_start_;         // Start position (when transition begins)
+  double t_start_;                  // Start time (seconds)
+  double transition_time_;          // Duration for interpolation (seconds)
+  bool is_interpolating_;           // Whether currently interpolating
+  bool first_update_;               // First update after start
 
   // Current error (for monitoring)
   Eigen::VectorXd q_error_;

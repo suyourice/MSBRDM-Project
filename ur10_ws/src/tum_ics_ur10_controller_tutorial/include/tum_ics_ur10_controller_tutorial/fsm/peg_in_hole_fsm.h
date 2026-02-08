@@ -31,7 +31,7 @@ public:
   enum class State
   {
     INIT,                 // Initialize controllers
-    HOME,                 // Move to home position (joint control)
+    MOVE_TO_SAFE,         // Move to safe position (joint control with interpolation)
     OPEN_GRIPPER,         // Open gripper
     MOVE_TO_PEG,          // Approach peg location (Cartesian)
     DESCEND_TO_PEG,       // Descend to grasp height
@@ -96,11 +96,11 @@ private:
   std::map<State, double> state_timeouts_;
 
   // Waypoints (from config)
-  Eigen::VectorXd q_home_;
+  Eigen::VectorXd q_safe_;          // User-defined safe position
   Eigen::Vector3d p_peg_;
   Eigen::Vector3d p_hole_;
   Eigen::Matrix3d R_peg_;
-  bool has_q_home_param_;
+  bool has_q_safe_param_;
 
   // Retry logic
   int retry_count_;
