@@ -25,15 +25,13 @@
     <rosparam command="load" file="$(find tum_ics_ur10_description)/robots/$(arg robot_prefix)ur10_zeros.yaml"/>
 
 
-    <node name="joint_state_publisher_ur10" pkg="joint_state_publisher" type="joint_state_publisher" >
-      <param name="use_gui" value="$(arg gui)"/>
-                <!--remap from="/joint_states" to="/joint_cmd"/-->
-<!--      <rosparam param="source_list">[$(arg robot_prefix)joint_states, $(arg robot_prefix)fingers_joint_states]</rosparam>-->
-<!--      <rosparam unless="$(arg gui)" param="source_list" subst_value="True">$(arg list)</rosparam>-->
-      <rosparam unless="$(arg gui)" param="source_list" subst_value="True">$(arg list)</rosparam>
+    <!-- GUI mode uses joint_state_publisher_gui (sliders) -->
+    <node name="joint_state_publisher_ur10" pkg="joint_state_publisher_gui" type="joint_state_publisher_gui" if="$(arg gui)" />
 
-      <!--rosparam param="source_list">[ur10_arm_joint_states]</rosparam-->
-
+    <!-- Non-GUI mode aggregates incoming joint states -->
+    <node name="joint_state_publisher_ur10" pkg="joint_state_publisher" type="joint_state_publisher" unless="$(arg gui)" >
+      <!--remap from="/joint_states" to="/joint_cmd"/-->
+      <rosparam param="source_list" subst_value="True">$(arg list)</rosparam>
     </node>
     <node name="robot_state_publisher_ur10" pkg="robot_state_publisher" type="robot_state_publisher" />
     <!--node name="rviz" pkg="rviz" type="rviz" args="-d $(find tum_ics_ur10_description)/launch/rviz_conf/$(arg robot_prefix)robot_ur10.rviz" /-->
