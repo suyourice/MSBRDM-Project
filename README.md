@@ -22,6 +22,7 @@ This repository uses the **TUM ICS UR10 framework** with ROS Noetic on Ubuntu 20
 Make sure all required `.deb` packages are installed before building.
 ```bash
 cd ~/MSBRDM/MSBRDM-Project/noetic_ubuntu20
+sudo dpkg -i tum-ics-libconfig1_*.deb
 sudo dpkg -i libtum-ics-*
 sudo dpkg -i libtumtools-*
 sudo dpkg -i ros-*
@@ -79,6 +80,14 @@ UR10 with force-torque sensor and Lacquey gripper:
 
 ```bash
 roslaunch tum_ics_ur10_bringup bringUR10-FT-lacquey.launch
+```
+
+---
+
+## Simulation for FSM
+
+```bash
+roslaunch tum_ics_ur10_controller_tutorial peg_in_hole.launch 2>&1 | tee peg_in_hole_run.log
 ```
 
 ---
