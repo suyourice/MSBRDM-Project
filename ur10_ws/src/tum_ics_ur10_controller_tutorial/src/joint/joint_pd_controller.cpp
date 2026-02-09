@@ -18,6 +18,27 @@ JointPDController::JointPDController(const QString& name, double weight)
 {
 }
 
+void JointPDController::onEnterState(const tum_ics_ur_robot_lli::RobotTime& time,
+                                     const tum_ics_ur_robot_lli::JointState& state)
+{
+  if (state.q.size() == 0)
+    return;
+
+  q_start_ = state.q;
+  q_desired_ = state.q;
+  q_target_ = state.q;
+  q_error_.setZero();
+  is_interpolating_ = false;
+  first_update_ = false;
+  t_start_ = time.tD();
+}
+
+void JointPDController::onExitState()
+{
+  q_error_.setZero();
+  is_interpolating_ = false;
+}
+
 void JointPDController::setDesiredPosition(const Eigen::VectorXd& q_desired)
 {
   q_target_ = q_desired;

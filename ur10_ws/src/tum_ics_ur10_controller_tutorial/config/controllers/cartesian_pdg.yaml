@@ -38,3 +38,20 @@ cartesian_pdg_controller:
   # Tolerances
   position_tolerance: 0.01
   orientation_tolerance: 0.05
+
+  # INSERTION_ADMITTANCE mode parameters (peg-in-hole assembly)
+  insertion:
+    # Circular search trajectory
+    radius: 0.003              # 3mm circular search radius (m)
+    omega: 0.5                 # Angular velocity for circular motion (rad/s)
+    v_descent: 0.002           # Z-axis descent velocity (m/s) - 2mm/s
+
+    # Success detection
+    z_target: 0.025            # Target insertion depth (m) - 25mm
+    force_drop_threshold: 3.0  # Force drop threshold for success (N)
+
+    # XY Admittance dynamics (force compliance)
+    admittance:
+      mass_xy: [0.5, 0.5]      # Virtual mass (kg) - XY plane only
+      damping_xy: [50.0, 50.0] # Damping coefficient (Ns/m) - XY plane only
+      max_displacement: 0.02   # Safety limit on compliance displacement (m) - 20mm

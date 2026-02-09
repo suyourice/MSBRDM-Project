@@ -41,6 +41,11 @@ public:
    */
   bool isAtTarget(double tolerance = 0.05) const;
 
+  // FSM lifecycle hooks
+  void onEnterState(const tum_ics_ur_robot_lli::RobotTime& time,
+                    const tum_ics_ur_robot_lli::JointState& state) override;
+  void onExitState() override;
+
   // Public wrappers for FSM to call protected methods
   bool callInit() { return init(); }
   bool callStart() { return start(); }

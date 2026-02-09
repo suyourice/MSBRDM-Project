@@ -1,6 +1,7 @@
 #pragma once
 
 #include <tum_ics_ur10_controller_tutorial/common/controller_base.h>
+#include <tum_ics_ur10_controller_tutorial/sensors/ft_sensor_interface.h>
 #include <tum_ics_ur_robot_lli/Robot/KinematicModel.h>
 #include <tum_ics_ur_robot_lli/Robot/DynamicModel.h>
 #include <ros/ros.h>
@@ -28,6 +29,17 @@ namespace tum_ics_ur10_controller_tutorial
 class CartesianPDGController : public ControllerBase
 {
 public:
+  /**
+   * @brief Operating modes for CartesianPDGController
+   *
+   * CRITICAL: Admittance is NOT a separate controller!
+   * It's an internal mode that modifies p_desired based on force feedback.
+   */
+  enum class Mode {
+    TRACKING,              ///< Normal position/orientation tracking
+    INSERTION_ADMITTANCE   ///< Peg-in-hole with circular search + XY force compliance
+  };
+
   CartesianPDGController(const QString& name = "CartesianPDGController",
                          double weight = 1.0);
 
@@ -58,6 +70,12 @@ public:
   void setDesiredVelocity(const Eigen::Matrix<double, 6, 1>& velocity);
 
   /**
+   * @brief Sync reference to current EE pose (for smooth transitions)
+   * CRITICAL: Call this before changing targets to prevent jumps
+   */
+  void syncToCurrentEE();
+
+  /**
    * @brief Get current desired pose
    */
   Eigen::Affine3d getDesiredPose() const;
@@ -68,6 +86,64 @@ public:
    * @param ori_tol Orientation tolerance (rad)
    */
   bool isAtTarget(double pos_tol = 0.01, double ori_tol = 0.05) const;
+
+  /**
+   * @brief Set operating mode
+   * @param mode TRACKING or INSERTION_ADMITTANCE
+   *
+   * CRITICAL: This allows mode switching WITHOUT changing controller instance!
+   * FSM should call this instead of switching between different controllers.
+   */
+  void setMode(Mode mode);
+
+  /**
+   * @brief Get current operating mode
+   */
+  Mode getMode() const { return mode_; }
+
+  /**
+   * @brief Set insertion center position (for INSERTION_ADMITTANCE mode)
+   * @param center Starting position for circular trajectory
+   */
+  void setInsertionCenter(const Eigen::Vector3d& center);
+
+  /**
+   * @brief Set insertion parameters (for INSERTION_ADMITTANCE mode)
+   * @param radius Circular search radius (m)
+   * @param omega Angular velocity (rad/s)
+   * @param v_descent Z-axis descent velocity (m/s)
+   * @param z_target Target insertion depth (m)
+   */
+  void setInsertionParams(double radius, double omega, double v_descent, double z_target);
+
+  /**
+   * @brief Set admittance parameters (for INSERTION_ADMITTANCE mode)
+   * @param M Virtual mass matrix (2x2, XY only)
+   * @param D Damping matrix (2x2, XY only)
+   */
+  void setAdmittanceParams(const Eigen::Matrix2d& M, const Eigen::Matrix2d& D);
+
+  /**
+   * @brief Check if insertion is complete
+   * @return True if z_depth >= target AND force_drop detected
+   */
+  bool isInsertionComplete() const { return insertion_success_; }
+
+  /**
+   * @brief Get current insertion depth
+   * @return Z-axis distance inserted (m)
+   */
+  double getCurrentDepth() const;
+
+  /**
+   * @brief Reset insertion state (for retry)
+   */
+  void resetInsertionState();
+
+  // FSM lifecycle hooks
+  void onEnterState(const tum_ics_ur_robot_lli::RobotTime& time,
+                    const tum_ics_ur_robot_lli::JointState& state) override;
+  void onExitState() override;
 
   // Public wrappers for FSM to call protected methods
   bool callInit() { return init(); }
@@ -91,6 +167,9 @@ protected:
   bool stop() override;
 
 private:
+  // Operating mode
+  Mode mode_;
+
   // Controller gains
   Eigen::Matrix3d Kp_pos_;  // Position gain
   Eigen::Matrix3d Kp_ori_;  // Orientation gain
@@ -108,6 +187,9 @@ private:
   tum_ics_ur_robot_lli::Robot::KinematicModel* kinematic_model_;
   tum_ics_ur_robot_lli::Robot::DynamicModel* dynamic_model_;
   bool use_gravity_comp_;
+
+  // F/T sensor (for INSERTION_ADMITTANCE mode)
+  FTSensorInterface ft_sensor_;
 
   // Stored robot configurations
   tum_ics_ur_robot_lli::JointState q_init_;
@@ -135,6 +217,30 @@ private:
   Eigen::VectorXd q_ref_;
   bool q_ref_initialized_;
   double last_time_;
+
+  // ========================================================================
+  // INSERTION_ADMITTANCE Mode State (Mode::INSERTION_ADMITTANCE only)
+  // ========================================================================
+
+  // Insertion trajectory parameters
+  Eigen::Vector3d insertion_center_;   ///< Center of circular motion
+  double insertion_start_time_;        ///< Time when insertion started (for trajectory)
+  double insertion_radius_;            ///< Circular search radius (m)
+  double insertion_omega_;             ///< Angular velocity (rad/s)
+  double insertion_v_descent_;         ///< Z-axis descent velocity (m/s)
+  double insertion_z_target_;          ///< Target insertion depth (m)
+
+  // Success detection
+  double force_initial_z_;             ///< Initial Z-axis force (recorded at mode entry)
+  double force_drop_threshold_;        ///< Force drop threshold for success (N)
+  bool insertion_success_;             ///< Success flag
+
+  // Admittance dynamics (XY plane only)
+  Eigen::Matrix2d M_adm_;              ///< Virtual mass matrix [2x2]
+  Eigen::Matrix2d D_adm_;              ///< Damping matrix [2x2]
+  Eigen::Vector2d x_adm_;              ///< Admittance displacement [XY]
+  Eigen::Vector2d xd_adm_;             ///< Admittance velocity [XY]
+  double max_compliance_disp_;         ///< Safety limit on admittance displacement (m)
 };
 
 } // namespace tum_ics_ur10_controller_tutorial

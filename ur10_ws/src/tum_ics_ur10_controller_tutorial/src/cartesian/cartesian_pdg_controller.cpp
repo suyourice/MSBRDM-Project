@@ -28,6 +28,40 @@ CartesianPDGController::CartesianPDGController(const QString& name, double weigh
   pose_error_.setZero();
 }
 
+void CartesianPDGController::onEnterState(const tum_ics_ur_robot_lli::RobotTime& time,
+                                          const tum_ics_ur_robot_lli::JointState& state)
+{
+  // CRITICAL: Sync to current state for smooth transition
+  if (kinematic_model_)
+  {
+    // Update kinematic model with current joint state
+    kinematic_model_->update(time, state);
+
+    // Sync reference to current EE pose (prevents jumps)
+    const Eigen::Affine3d& current_pose = kinematic_model_->Tef_0();
+    p_desired_ = current_pose.translation();
+    R_desired_ = current_pose.rotation();
+
+    ROS_INFO_STREAM("CartesianPDG::onEnterState - Synced to current EE: "
+                    << p_desired_.transpose());
+  }
+
+  // Reset velocity and error
+  xdot_desired_.setZero();
+  pose_error_.setZero();
+
+  // Initialize joint reference for PDG integration
+  q_ref_ = state.q;
+  q_ref_initialized_ = true;
+  last_time_ = time.tD();
+}
+
+void CartesianPDGController::onExitState()
+{
+  xdot_desired_.setZero();
+  pose_error_.setZero();
+}
+
 void CartesianPDGController::setDesiredPose(const Eigen::Affine3d& pose)
 {
   p_desired_ = pose.translation();
@@ -51,6 +85,25 @@ void CartesianPDGController::setDesiredVelocity(
   const Eigen::Matrix<double, 6, 1>& velocity)
 {
   xdot_desired_ = velocity;
+}
+
+void CartesianPDGController::syncToCurrentEE()
+{
+  // Sync reference to current EE pose to prevent jumps
+  if (kinematic_model_)
+  {
+    const Eigen::Affine3d& current_pose = kinematic_model_->Tef_0();
+    p_desired_ = current_pose.translation();
+    R_desired_ = current_pose.rotation();
+    xdot_desired_.setZero();
+
+    ROS_INFO_STREAM("CartesianPDG: Synced to current EE"
+                    << " pos=" << p_desired_.transpose());
+  }
+  else
+  {
+    ROS_WARN("CartesianPDG: Cannot sync - kinematic model not initialized");
+  }
 }
 
 Eigen::Affine3d CartesianPDGController::getDesiredPose() const
@@ -222,6 +275,48 @@ bool CartesianPDGController::init()
   R_desired_.setIdentity();
   xdot_desired_.setZero();
 
+  // Initialize mode (default: TRACKING)
+  mode_ = Mode::TRACKING;
+
+  // Initialize F/T sensor for INSERTION_ADMITTANCE mode
+  if (!ft_sensor_.init(pnh))
+  {
+    ROS_WARN("CartesianPDGController: F/T sensor initialization failed");
+    ROS_WARN("  INSERTION_ADMITTANCE mode will not have force feedback");
+  }
+  else
+  {
+    ROS_INFO("CartesianPDGController: F/T sensor initialized");
+  }
+
+  // Read insertion parameters from YAML
+  pnh.param(ns + "/insertion/radius", insertion_radius_, 0.003);
+  pnh.param(ns + "/insertion/omega", insertion_omega_, 0.5);
+  pnh.param(ns + "/insertion/v_descent", insertion_v_descent_, 0.002);
+  pnh.param(ns + "/insertion/z_target", insertion_z_target_, 0.025);
+  pnh.param(ns + "/insertion/force_drop_threshold", force_drop_threshold_, 3.0);
+
+  std::vector<double> mass_xy, damping_xy;
+  pnh.param(ns + "/insertion/admittance/mass_xy", mass_xy, std::vector<double>{0.5, 0.5});
+  pnh.param(ns + "/insertion/admittance/damping_xy", damping_xy, std::vector<double>{50.0, 50.0});
+  pnh.param(ns + "/insertion/admittance/max_displacement", max_compliance_disp_, 0.02);
+
+  M_adm_ = Eigen::Vector2d(mass_xy[0], mass_xy[1]).asDiagonal();
+  D_adm_ = Eigen::Vector2d(damping_xy[0], damping_xy[1]).asDiagonal();
+
+  // Initialize insertion state
+  insertion_center_.setZero();
+  insertion_start_time_ = -1.0;
+  force_initial_z_ = 0.0;
+  insertion_success_ = false;
+  x_adm_.setZero();
+  xd_adm_.setZero();
+
+  ROS_INFO_STREAM("Insertion params loaded:");
+  ROS_INFO_STREAM("  radius=" << insertion_radius_ << "m, omega=" << insertion_omega_
+                  << "rad/s, v_z=" << insertion_v_descent_ << "m/s");
+  ROS_INFO_STREAM("  z_target=" << insertion_z_target_ << "m, force_drop=" << force_drop_threshold_ << "N");
+
   ROS_INFO_STREAM("CartesianPDGController initialized");
   ROS_INFO_STREAM("Kp_pos diagonal: " << Kp_pos_.diagonal().transpose());
   ROS_INFO_STREAM("Kp_ori diagonal: " << Kp_ori_.diagonal().transpose());
@@ -236,12 +331,16 @@ bool CartesianPDGController::init()
 
 bool CartesianPDGController::start()
 {
-  ROS_INFO_STREAM("CartesianPDGController::start()");
+  ROS_INFO_STREAM("CartesianPDGController::start() - ONE-TIME initialization");
 
-  // Reset error
+  // ONLY called once when FSM first uses Cartesian control
+  // Minimal reset - don't touch p_desired_ or R_desired_!
   pose_error_.setZero();
+  xdot_desired_.setZero();
   q_ref_initialized_ = false;
   last_time_ = -1.0;
+
+  ROS_INFO_STREAM("  p_desired (preserved): " << p_desired_.transpose());
 
   return true;
 }
@@ -276,6 +375,89 @@ Tum::VectorDOFd CartesianPDGController::update(
     ROS_ERROR_STREAM("J(2,0:2) = " << J(2,0) << ", " << J(2,1) << ", " << J(2,2));
     jacobian_checked = true;
   }
+
+  // Update desired pose based on current mode
+  if (mode_ == Mode::INSERTION_ADMITTANCE)
+  {
+    // Initialize insertion timer on first cycle
+    if (insertion_start_time_ < 0.0)
+    {
+      insertion_start_time_ = time.tRc().toSec();
+      ROS_INFO_STREAM("INSERTION_ADMITTANCE: Starting at t=" << insertion_start_time_);
+    }
+
+    double t_elapsed = time.tRc().toSec() - insertion_start_time_;
+
+    // 1. Generate circular trajectory
+    double theta = insertion_omega_ * t_elapsed;
+    Eigen::Vector3d p_circular = insertion_center_;
+    p_circular.x() += insertion_radius_ * std::cos(theta);
+    p_circular.y() += insertion_radius_ * std::sin(theta);
+    p_circular.z() -= insertion_v_descent_ * t_elapsed;  // Descend
+
+    // 2. Get force measurement from F/T sensor
+    Eigen::Vector3d F_ext = Eigen::Vector3d::Zero();
+    if (ft_sensor_.isDataValid(0.1))
+    {
+      F_ext = ft_sensor_.getForce();
+    }
+    else
+    {
+      ROS_WARN_STREAM_THROTTLE(1.0, "INSERTION_ADMITTANCE: F/T sensor data invalid!");
+    }
+
+    // 3. Integrate admittance dynamics (XY plane only)
+    //    Simplified: M·ẍ + D·ẋ = F_ext  →  ẋ = D^-1 · F_ext
+    Eigen::Vector2d F_xy(F_ext.x(), F_ext.y());
+    Eigen::Vector2d xd_adm_new = D_adm_.inverse() * F_xy;
+
+    // Velocity smoothing (prevent spikes)
+    double dt = time.tD() - last_time_;
+    if (dt > 0.0 && dt < 0.1)
+    {
+      xd_adm_ = 0.8 * xd_adm_ + 0.2 * xd_adm_new;
+
+      // Integrate displacement
+      x_adm_ += xd_adm_ * dt;
+
+      // Safety clamp
+      if (x_adm_.norm() > max_compliance_disp_)
+      {
+        x_adm_ *= (max_compliance_disp_ / x_adm_.norm());
+      }
+    }
+
+    // 4. Combine: circular trajectory + admittance compliance
+    p_desired_ = p_circular;
+    p_desired_.x() += x_adm_.x();
+    p_desired_.y() += x_adm_.y();
+
+    // 5. Success detection: z_depth AND force_drop
+    double z_depth = insertion_center_.z() - p_circular.z();
+    double force_drop = force_initial_z_ - F_ext.z();
+
+    insertion_success_ = (z_depth >= insertion_z_target_) &&
+                         (force_drop > force_drop_threshold_);
+
+    // Debug output (throttled)
+    static int insertion_debug_counter = 0;
+    if (insertion_debug_counter++ % 100 == 0)  // Every 0.2s
+    {
+      ROS_INFO_STREAM("INSERTION_ADMITTANCE:");
+      ROS_INFO_STREAM("  t=" << t_elapsed << "s, theta=" << theta << "rad");
+      ROS_INFO_STREAM("  p_circular: " << p_circular.transpose());
+      ROS_INFO_STREAM("  x_adm: " << x_adm_.transpose());
+      ROS_INFO_STREAM("  p_desired: " << p_desired_.transpose());
+      ROS_INFO_STREAM("  F_ext: " << F_ext.transpose());
+      ROS_INFO_STREAM("  z_depth=" << z_depth << "m, force_drop=" << force_drop << "N");
+      if (insertion_success_)
+      {
+        ROS_INFO_STREAM("  *** INSERTION SUCCESS ***");
+      }
+    }
+  }
+
+  // Mode::TRACKING: p_desired already set by setDesiredPose()
 
   // Compute pose error
   Eigen::Vector3d e_pos = cartesian_error::computePositionError(
@@ -393,6 +575,108 @@ bool CartesianPDGController::stop()
   }
 
   return true;
+}
+
+// Mode switching methods
+
+void CartesianPDGController::setMode(Mode mode)
+{
+  if (mode_ == mode)
+  {
+    return;  // Already in this mode
+  }
+
+  Mode old_mode = mode_;
+  mode_ = mode;
+
+  ROS_INFO_STREAM("CartesianPDGController: Mode changed from "
+    << (old_mode == Mode::TRACKING ? "TRACKING" : "INSERTION_ADMITTANCE")
+    << " → "
+    << (mode == Mode::TRACKING ? "TRACKING" : "INSERTION_ADMITTANCE"));
+
+  if (mode_ == Mode::INSERTION_ADMITTANCE)
+  {
+    // Reset admittance state
+    x_adm_.setZero();
+    xd_adm_.setZero();
+    insertion_success_ = false;
+    insertion_start_time_ = -1.0;  // Will be set on first update()
+
+    // Record initial force (for drop detection)
+    if (ft_sensor_.isDataValid(0.1))
+    {
+      force_initial_z_ = ft_sensor_.getForce().z();
+      ROS_INFO_STREAM("  Initial Z force = " << force_initial_z_ << " N");
+    }
+    else
+    {
+      force_initial_z_ = 0.0;
+      ROS_WARN("  F/T sensor data invalid - cannot record initial force");
+    }
+  }
+  else if (mode_ == Mode::TRACKING)
+  {
+    // Switched back to tracking - no special action needed
+    ROS_INFO_STREAM("  Switched back to TRACKING mode");
+  }
+}
+
+void CartesianPDGController::setInsertionCenter(const Eigen::Vector3d& center)
+{
+  insertion_center_ = center;
+  insertion_start_time_ = -1.0;  // Will be reset on first update()
+  ROS_INFO_STREAM("CartesianPDGController: Insertion center set to " << center.transpose());
+}
+
+void CartesianPDGController::resetInsertionState()
+{
+  x_adm_.setZero();
+  xd_adm_.setZero();
+  insertion_success_ = false;
+  insertion_start_time_ = -1.0;
+  ROS_INFO_STREAM("CartesianPDGController: Insertion state reset");
+}
+
+double CartesianPDGController::getCurrentDepth() const
+{
+  if (insertion_start_time_ < 0.0)
+  {
+    return 0.0;  // Not started yet
+  }
+
+  // Compute depth from start position
+  // NOTE: This is approximate - actual depth may differ due to admittance
+  if (kinematic_model_)
+  {
+    const Eigen::Affine3d& x_current = kinematic_model_->Tef_0();
+    double z_current = x_current.translation().z();
+    double z_depth = insertion_center_.z() - z_current;
+    return std::max(0.0, z_depth);  // Clamp to non-negative
+  }
+
+  return 0.0;
+}
+
+void CartesianPDGController::setInsertionParams(double radius, double omega,
+                                                 double v_descent, double z_target)
+{
+  insertion_radius_ = radius;
+  insertion_omega_ = omega;
+  insertion_v_descent_ = v_descent;
+  insertion_z_target_ = z_target;
+  ROS_INFO_STREAM("CartesianPDGController: Insertion params updated");
+  ROS_INFO_STREAM("  radius=" << radius << "m, omega=" << omega << "rad/s");
+  ROS_INFO_STREAM("  v_descent=" << v_descent << "m/s, z_target=" << z_target << "m");
+}
+
+void CartesianPDGController::setAdmittanceParams(const Eigen::Matrix2d& M,
+                                                  const Eigen::Matrix2d& D)
+{
+  M_adm_ = M;
+  D_adm_ = D;
+  ROS_INFO_STREAM("CartesianPDGController: Admittance params updated");
+  ROS_INFO_STREAM("  M_adm diagonal: " << M_adm_.diagonal().transpose());
+  ROS_INFO_STREAM("  D_adm diagonal: " << D_adm_.diagonal().transpose());
 }
 
 // Implement additional pure virtuals from Controller

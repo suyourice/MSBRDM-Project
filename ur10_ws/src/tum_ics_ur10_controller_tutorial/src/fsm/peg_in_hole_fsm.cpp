@@ -11,8 +11,11 @@ PegInHoleFSM::PegInHoleFSM(double weight, const QString& name)
                    weight),
     joint_ctrl_("FSM_JointPD"),
     cartesian_ctrl_("FSM_CartesianPDG"),
-    insertion_ctrl_("FSM_HybridInsertion"),
     state_(State::INIT),
+    pending_transition_(State::INIT),
+    has_pending_transition_(false),
+    state_cycles_(0),
+    target_pending_(false),
     retry_count_(0),
     max_retries_(3),
     use_aruco_(false),
@@ -21,8 +24,19 @@ PegInHoleFSM::PegInHoleFSM(double weight, const QString& name)
     frame_R_(Eigen::Matrix3d::Identity()),
     frame_t_(Eigen::Vector3d::Zero()),
     use_tool_transform_(false),
-    tool_T_(Eigen::Affine3d::Identity())
+    tool_T_(Eigen::Affine3d::Identity()),
+    min_dwell_joint_to_cartesian_(0.3),
+    min_dwell_cartesian_(0.1),
+    hold_cartesian_time_(0.3),
+    last_tau_valid_(false),
+    insertion_radius_(0.003),
+    insertion_omega_(0.5),
+    insertion_v_descent_(0.002),
+    insertion_target_depth_(0.025),
+    insertion_success_(false)
 {
+  last_tau_ = Eigen::VectorXd::Zero(6);
+  insertion_start_pos_.setZero();
 }
 
 std::string PegInHoleFSM::getStateName() const
@@ -32,6 +46,7 @@ std::string PegInHoleFSM::getStateName() const
     case State::INIT: return "INIT";
     case State::MOVE_TO_SAFE: return "MOVE_TO_SAFE";
     case State::OPEN_GRIPPER: return "OPEN_GRIPPER";
+    case State::HOLD_CARTESIAN: return "HOLD_CARTESIAN";
     case State::MOVE_TO_PEG: return "MOVE_TO_PEG";
     case State::DESCEND_TO_PEG: return "DESCEND_TO_PEG";
     case State::CLOSE_GRIPPER: return "CLOSE_GRIPPER";
@@ -51,7 +66,8 @@ bool PegInHoleFSM::init()
   ROS_INFO_STREAM("PegInHoleFSM::init()");
 
   // Initialize sub-controllers (they create their own KinematicModels)
-  if (!joint_ctrl_.callInit() || !cartesian_ctrl_.callInit() || !insertion_ctrl_.callInit())
+  // CRITICAL: Only initialize joint_ctrl_ and cartesian_ctrl_ (no insertion_ctrl_!)
+  if (!joint_ctrl_.callInit() || !cartesian_ctrl_.callInit())
   {
     ROS_ERROR("Failed to initialize sub-controllers");
     return false;
@@ -215,6 +231,7 @@ bool PegInHoleFSM::init()
   // State timeouts (seconds)
   state_timeouts_[State::MOVE_TO_SAFE] = 10.0;
   state_timeouts_[State::OPEN_GRIPPER] = 2.0;
+  state_timeouts_[State::HOLD_CARTESIAN] = hold_cartesian_time_;
   state_timeouts_[State::MOVE_TO_PEG] = 30.0;
   state_timeouts_[State::DESCEND_TO_PEG] = 30.0;
   state_timeouts_[State::CLOSE_GRIPPER] = 2.0;
@@ -244,6 +261,7 @@ bool PegInHoleFSM::init()
     };
     read_timeout(State::MOVE_TO_SAFE, "MOVE_TO_SAFE");
     read_timeout(State::OPEN_GRIPPER, "OPEN_GRIPPER");
+    read_timeout(State::HOLD_CARTESIAN, "HOLD_CARTESIAN");
     read_timeout(State::MOVE_TO_PEG, "MOVE_TO_PEG");
     read_timeout(State::DESCEND_TO_PEG, "DESCEND_TO_PEG");
     read_timeout(State::CLOSE_GRIPPER, "CLOSE_GRIPPER");
@@ -256,6 +274,16 @@ bool PegInHoleFSM::init()
   // Other parameters
   pnh.param(ns + "/max_retries", max_retries_, 3);
   pnh.param(ns + "/use_aruco", use_aruco_, false);
+  pnh.param(ns + "/min_dwell_joint_to_cartesian", min_dwell_joint_to_cartesian_, 0.3);
+  pnh.param(ns + "/min_dwell_cartesian", min_dwell_cartesian_, 0.1);
+  pnh.param(ns + "/hold_cartesian_time", hold_cartesian_time_, 0.3);
+  state_timeouts_[State::HOLD_CARTESIAN] = hold_cartesian_time_;
+
+  // Circular insertion parameters (FSM-managed trajectory)
+  pnh.param(ns + "/insertion_radius", insertion_radius_, 0.003);  // 3mm
+  pnh.param(ns + "/insertion_omega", insertion_omega_, 0.5);      // 0.5 rad/s
+  pnh.param(ns + "/insertion_v_descent", insertion_v_descent_, 0.002);  // 2mm/s
+  pnh.param(ns + "/insertion_target_depth", insertion_target_depth_, 0.025);  // 25mm
 
   // Initialize gripper
   if (!gripper_.init(pnh))
@@ -277,7 +305,6 @@ bool PegInHoleFSM::init()
     q_home_stored_ = q_safe_state;  // Store as home for sub-controllers
     joint_ctrl_.setQHome(q_safe_state);
     cartesian_ctrl_.setQHome(q_safe_state);
-    insertion_ctrl_.setQHome(q_safe_state);
 
     ROS_INFO_STREAM("Propagated YAML q_safe to sub-controllers [rad]: " << q_safe_.transpose());
   }
@@ -295,7 +322,10 @@ bool PegInHoleFSM::start()
   ROS_INFO_STREAM("PegInHoleFSM::start()");
 
   retry_count_ = 0;
-  transitionTo(State::MOVE_TO_SAFE);
+  state_ = State::INIT;
+  has_pending_transition_ = false;
+  target_pending_ = false;
+  state_cycles_ = 0;
 
   return true;
 }
@@ -306,30 +336,147 @@ bool PegInHoleFSM::stop()
   return true;
 }
 
-void PegInHoleFSM::transitionTo(State new_state)
+void PegInHoleFSM::switchState(State new_state,
+                               const tum_ics_ur_robot_lli::RobotTime& time,
+                               const tum_ics_ur_robot_lli::JointState& state)
 {
-  std::string old_state_name = getStateName();
-  state_ = new_state;
-  ROS_INFO_STREAM("FSM: " << old_state_name << " -> " << getStateName());
-
-  state_start_time_ = tum_ics_ur_robot_lli::RobotTime();
-
-  // State entry actions
+  // Exit hook for the current controller
+  // CRITICAL: Only two controllers used (joint_ctrl_, cartesian_ctrl_)
   switch (state_)
   {
     case State::MOVE_TO_SAFE:
-      joint_ctrl_.callStart();
-      joint_ctrl_.setDesiredPosition(q_safe_);
+    case State::OPEN_GRIPPER:
+      joint_ctrl_.onExitState();
+      break;
+
+    case State::MOVE_TO_PEG:
+    case State::DESCEND_TO_PEG:
+    case State::LIFT_PEG:
+    case State::MOVE_ABOVE_HOLE:
+    case State::ALIGN_ORIENTATION:
+    case State::CLOSE_GRIPPER:
+      cartesian_ctrl_.onExitState();
+      break;
+
+    case State::CIRCULAR_INSERTION:
+      // Return to TRACKING mode after insertion
+      cartesian_ctrl_.setMode(CartesianPDGController::Mode::TRACKING);
+      cartesian_ctrl_.onExitState();
+      ROS_INFO_STREAM("FSM: Exiting CIRCULAR_INSERTION, mode set to TRACKING");
+      break;
+
+    default:
+      break;
+  }
+
+  const std::string old_state_name = getStateName();
+  state_ = new_state;
+  ROS_INFO_STREAM("FSM: " << old_state_name << " -> " << getStateName());
+
+  state_start_time_ = time;
+  state_cycles_ = 0;
+  target_pending_ = true;
+
+  // State entry actions
+  // CRITICAL: Don't call callStart() - controllers stay alive!
+  // Only call onEnterState() to sync state
+  switch (state_)
+  {
+    case State::MOVE_TO_SAFE:
+      // First time using joint controller - call start once
+      if (old_state_name == "INIT")
+        joint_ctrl_.callStart();
+      joint_ctrl_.onEnterState(time, state);
       break;
 
     case State::OPEN_GRIPPER:
-      // Keep JointPD running from MOVE_TO_SAFE so the arm holds pose
-      gripper_.open();
+      // Joint controller continues from MOVE_TO_SAFE
+      joint_ctrl_.onEnterState(time, state);
+      break;
+
+    case State::HOLD_CARTESIAN:
+      // First time using Cartesian controller - call start once
+      cartesian_ctrl_.callStart();
+      cartesian_ctrl_.onEnterState(time, state);
       break;
 
     case State::MOVE_TO_PEG:
     {
-      cartesian_ctrl_.callStart();
+      // Cartesian controller continues - only sync state
+      cartesian_ctrl_.onEnterState(time, state);
+      break;
+    }
+
+    case State::DESCEND_TO_PEG:
+    {
+      // Cartesian controller continues
+      cartesian_ctrl_.onEnterState(time, state);
+      break;
+    }
+
+    case State::CLOSE_GRIPPER:
+      // Cartesian controller continues
+      cartesian_ctrl_.onEnterState(time, state);
+      break;
+
+    case State::LIFT_PEG:
+    {
+      // Cartesian controller continues
+      cartesian_ctrl_.onEnterState(time, state);
+      break;
+    }
+
+    case State::MOVE_ABOVE_HOLE:
+    {
+      // Cartesian controller continues
+      cartesian_ctrl_.onEnterState(time, state);
+      break;
+    }
+
+    case State::ALIGN_ORIENTATION:
+    {
+      // Cartesian controller continues
+      cartesian_ctrl_.onEnterState(time, state);
+      break;
+    }
+
+    case State::CIRCULAR_INSERTION:
+    {
+      // CRITICAL: Continue using cartesian_ctrl_ (no controller switch!)
+      // Just sync state for smooth transition
+      cartesian_ctrl_.onEnterState(time, state);
+
+      // Initialize insertion trajectory timing
+      insertion_start_time_ = time.tRc().toSec();
+      insertion_success_ = false;
+      break;
+    }
+
+    default:
+      break;
+  }
+}
+
+void PegInHoleFSM::applyStateTargets(const tum_ics_ur_robot_lli::JointState& state)
+{
+  switch (state_)
+  {
+    case State::MOVE_TO_SAFE:
+      joint_ctrl_.setDesiredPosition(q_safe_);
+      break;
+
+    case State::OPEN_GRIPPER:
+      gripper_.open();
+      break;
+
+    case State::HOLD_CARTESIAN:
+      // Do NOT change target - onEnterState() already synced to current EE
+      // Just ensure zero desired velocity
+      cartesian_ctrl_.setDesiredVelocity(Eigen::Matrix<double, 6, 1>::Zero());
+      break;
+
+    case State::MOVE_TO_PEG:
+    {
       Eigen::Affine3d target = Eigen::Affine3d::Identity();
       target.translation() = p_peg_;
       target.translation().z() += 0.1;
@@ -345,7 +492,6 @@ void PegInHoleFSM::transitionTo(State new_state)
 
     case State::DESCEND_TO_PEG:
     {
-      cartesian_ctrl_.callStart();
       Eigen::Affine3d target = Eigen::Affine3d::Identity();
       target.translation() = p_peg_;
       target.linear() = R_peg_;
@@ -358,27 +504,25 @@ void PegInHoleFSM::transitionTo(State new_state)
     }
 
     case State::CLOSE_GRIPPER:
-      // Hold current peg pose while closing
-      cartesian_ctrl_.callStart();
-      cartesian_ctrl_.setDesiredPose(cartesian_ctrl_.getDesiredPose());
-      gripper_.grasp(20.0);  // 20N grasping force
+      // Hold current position while gripper closes
+      // (onEnterState already synced to current EE)
+      cartesian_ctrl_.setDesiredVelocity(Eigen::Matrix<double, 6, 1>::Zero());
+      gripper_.grasp(20.0);
       break;
 
     case State::LIFT_PEG:
     {
-      cartesian_ctrl_.callStart();
       Eigen::Affine3d target = cartesian_ctrl_.getDesiredPose();
-      target.translation().z() += 0.05;  // Lift 5cm
+      target.translation().z() += 0.05;
       cartesian_ctrl_.setDesiredPose(target);
       break;
     }
 
     case State::MOVE_ABOVE_HOLE:
     {
-      cartesian_ctrl_.callStart();
       Eigen::Affine3d target = Eigen::Affine3d::Identity();
       target.translation() = p_hole_;
-      target.translation().z() += 0.1;  // 10cm above hole
+      target.translation().z() += 0.1;
       target.linear() = R_peg_;
       if (use_tool_transform_)
       {
@@ -390,10 +534,9 @@ void PegInHoleFSM::transitionTo(State new_state)
 
     case State::ALIGN_ORIENTATION:
     {
-      cartesian_ctrl_.callStart();
       Eigen::Affine3d target = Eigen::Affine3d::Identity();
       target.translation() = p_hole_;
-      target.translation().z() += 0.05;  // 5cm above hole
+      target.translation().z() += 0.05;
       target.linear() = R_peg_;
       if (use_tool_transform_)
       {
@@ -405,12 +548,16 @@ void PegInHoleFSM::transitionTo(State new_state)
 
     case State::CIRCULAR_INSERTION:
     {
-      insertion_ctrl_.callStart();
-      Eigen::Vector3d start_pos = p_hole_;
-      start_pos.z() += 0.02;  // Start 2cm above
-      insertion_ctrl_.setStartPosition(start_pos);
-      insertion_ctrl_.setTargetDepth(0.025);  // 25mm insertion
-      insertion_ctrl_.reset();
+      // Switch to INSERTION_ADMITTANCE mode (trajectory and force compliance handled by controller)
+      cartesian_ctrl_.setMode(CartesianPDGController::Mode::INSERTION_ADMITTANCE);
+
+      // Set starting position for circular motion
+      Eigen::Vector3d insertion_center = p_hole_;
+      insertion_center.z() += 0.02;  // Start 2cm above hole
+      cartesian_ctrl_.setInsertionCenter(insertion_center);
+
+      ROS_INFO_STREAM("FSM: CIRCULAR_INSERTION mode activated");
+      ROS_INFO_STREAM("  Insertion center: " << insertion_center.transpose());
       break;
     }
 
@@ -419,9 +566,39 @@ void PegInHoleFSM::transitionTo(State new_state)
   }
 }
 
-bool PegInHoleFSM::checkStateComplete()
+bool PegInHoleFSM::checkStateComplete(const tum_ics_ur_robot_lli::RobotTime& time)
 {
-  double elapsed = (last_time_.tRc() - state_start_time_.tRc()).toSec();
+  double elapsed = (time.tRc() - state_start_time_.tRc()).toSec();
+
+  // CRITICAL: Prevent immediate completion after state entry
+  // Need at least 2 cycles:
+  //   Cycle 0: transition tick (hold last_tau)
+  //   Cycle 1: apply targets
+  //   Cycle 2+: can check completion
+  if (state_cycles_ < 2)
+    return false;
+
+  // Minimum dwell time enforcement (physical continuity)
+  const double MIN_DWELL = 0.05;  // 50ms absolute minimum
+
+  if (state_ == State::MOVE_TO_SAFE || state_ == State::OPEN_GRIPPER)
+  {
+    // Joint → Cartesian transition: need more settling time
+    if (elapsed < std::max(min_dwell_joint_to_cartesian_, MIN_DWELL))
+      return false;
+  }
+  else if (state_ == State::HOLD_CARTESIAN)
+  {
+    // Explicit hold state: use configured time
+    if (elapsed < std::max(hold_cartesian_time_, MIN_DWELL))
+      return false;
+  }
+  else
+  {
+    // All other states: minimum dwell
+    if (elapsed < std::max(min_dwell_cartesian_, MIN_DWELL))
+      return false;
+  }
 
   // Check timeout
   if (state_timeouts_.count(state_) > 0)
@@ -439,6 +616,9 @@ bool PegInHoleFSM::checkStateComplete()
     case State::MOVE_TO_SAFE:
       return joint_ctrl_.isAtTarget();
 
+    case State::HOLD_CARTESIAN:
+      return elapsed >= hold_cartesian_time_;
+
     case State::MOVE_TO_PEG:
     case State::DESCEND_TO_PEG:
     case State::LIFT_PEG:
@@ -454,7 +634,19 @@ bool PegInHoleFSM::checkStateComplete()
       return elapsed > 2.0;  // Wait for gripper action
 
     case State::CIRCULAR_INSERTION:
-      return insertion_ctrl_.isInsertionComplete();
+    {
+      // Check insertion completion (z_depth and force_drop criteria)
+      insertion_success_ = cartesian_ctrl_.isInsertionComplete();
+
+      if (insertion_success_)
+      {
+        ROS_INFO_STREAM("CIRCULAR_INSERTION: Insertion complete");
+        ROS_INFO_STREAM("  Depth: " << cartesian_ctrl_.getCurrentDepth() << "m");
+        return true;
+      }
+
+      return false;
+    }
 
     default:
       return false;
@@ -466,6 +658,44 @@ Tum::VectorDOFd PegInHoleFSM::update(const tum_ics_ur_robot_lli::RobotTime& time
 {
   // Update time tracking
   last_time_ = time;
+
+  // ============================================================================
+  // CRITICAL: ONE state transition per cycle
+  // During transition tick: switchState() + return last_tau (NO new computation)
+  // ============================================================================
+
+  // Apply any pending transition at the START of the cycle
+  if (has_pending_transition_)
+  {
+    switchState(pending_transition_, time, state);
+    has_pending_transition_ = false;
+
+    // HOLD last torque during transition tick (physical continuity!)
+    if (last_tau_valid_ && last_tau_.size() == state.q.size())
+    {
+      ROS_INFO_STREAM("FSM: Transition tick - holding last torque");
+      return last_tau_;
+    }
+    else
+    {
+      return Eigen::VectorXd::Zero(state.q.size());
+    }
+  }
+
+  // Handle INIT state
+  if (state_ == State::INIT)
+  {
+    switchState(State::MOVE_TO_SAFE, time, state);
+    return Eigen::VectorXd::Zero(state.q.size());
+  }
+
+  // Apply targets ONE cycle after state entry (deferred application)
+  if (target_pending_ && state_cycles_ >= 1)
+  {
+    applyStateTargets(state);
+    target_pending_ = false;
+    ROS_INFO_STREAM("FSM: Targets applied for state " << getStateName());
+  }
 
   // Generate control torques based on current state
   Eigen::VectorXd tau = Eigen::VectorXd::Zero(state.q.size());
@@ -481,6 +711,7 @@ Tum::VectorDOFd PegInHoleFSM::update(const tum_ics_ur_robot_lli::RobotTime& time
       tau = joint_ctrl_.callUpdate(time, state);
       break;
 
+    case State::HOLD_CARTESIAN:
     case State::MOVE_TO_PEG:
     case State::DESCEND_TO_PEG:
     case State::LIFT_PEG:
@@ -494,8 +725,11 @@ Tum::VectorDOFd PegInHoleFSM::update(const tum_ics_ur_robot_lli::RobotTime& time
       break;
 
     case State::CIRCULAR_INSERTION:
-      tau = insertion_ctrl_.callUpdate(time, state);
+    {
+      // Controller generates trajectory and applies force compliance internally
+      tau = cartesian_ctrl_.callUpdate(time, state);
       break;
+    }
 
     default:
       tau.setZero();
@@ -503,47 +737,61 @@ Tum::VectorDOFd PegInHoleFSM::update(const tum_ics_ur_robot_lli::RobotTime& time
   }
 
   // State machine logic - check for transitions AFTER update (uses fresh errors)
-  if (checkStateComplete())
+  if (!has_pending_transition_ && checkStateComplete(time))
   {
     switch (state_)
     {
       case State::MOVE_TO_SAFE:
-        transitionTo(State::OPEN_GRIPPER);
+        pending_transition_ = State::OPEN_GRIPPER;
+        has_pending_transition_ = true;
         break;
 
       case State::OPEN_GRIPPER:
-        transitionTo(State::MOVE_TO_PEG);
+        pending_transition_ = State::HOLD_CARTESIAN;
+        has_pending_transition_ = true;
+        break;
+
+      case State::HOLD_CARTESIAN:
+        pending_transition_ = State::MOVE_TO_PEG;
+        has_pending_transition_ = true;
         break;
 
       case State::MOVE_TO_PEG:
-        transitionTo(State::DESCEND_TO_PEG);
+        pending_transition_ = State::DESCEND_TO_PEG;
+        has_pending_transition_ = true;
         break;
 
       case State::DESCEND_TO_PEG:
-        transitionTo(State::CLOSE_GRIPPER);
+        pending_transition_ = State::CLOSE_GRIPPER;
+        has_pending_transition_ = true;
         break;
 
       case State::CLOSE_GRIPPER:
-        transitionTo(State::LIFT_PEG);
+        pending_transition_ = State::LIFT_PEG;
+        has_pending_transition_ = true;
         break;
 
       case State::LIFT_PEG:
-        transitionTo(State::MOVE_ABOVE_HOLE);
+        pending_transition_ = State::MOVE_ABOVE_HOLE;
+        has_pending_transition_ = true;
         break;
 
       case State::MOVE_ABOVE_HOLE:
-        transitionTo(State::ALIGN_ORIENTATION);
+        pending_transition_ = State::ALIGN_ORIENTATION;
+        has_pending_transition_ = true;
         break;
 
       case State::ALIGN_ORIENTATION:
-        transitionTo(State::CIRCULAR_INSERTION);
+        pending_transition_ = State::CIRCULAR_INSERTION;
+        has_pending_transition_ = true;
         break;
 
       case State::CIRCULAR_INSERTION:
-        if (insertion_ctrl_.isInsertionComplete())
+        if (insertion_success_)
         {
           ROS_INFO("Insertion successful!");
-          transitionTo(State::SUCCESS);
+          pending_transition_ = State::SUCCESS;
+          has_pending_transition_ = true;
         }
         else
         {
@@ -552,24 +800,33 @@ Tum::VectorDOFd PegInHoleFSM::update(const tum_ics_ur_robot_lli::RobotTime& time
           {
             retry_count_++;
             ROS_WARN_STREAM("Insertion failed, retrying (" << retry_count_ << "/" << max_retries_ << ")");
-            transitionTo(State::LIFT_PEG);  // Go back and try again
+            pending_transition_ = State::LIFT_PEG;
+            has_pending_transition_ = true;
           }
           else
           {
             ROS_ERROR("Max retries exceeded, aborting");
-            transitionTo(State::DONE);
+            pending_transition_ = State::DONE;
+            has_pending_transition_ = true;
           }
         }
         break;
 
       case State::SUCCESS:
-        transitionTo(State::DONE);
+        pending_transition_ = State::DONE;
+        has_pending_transition_ = true;
         break;
 
       default:
         break;
     }
   }
+
+  // Store torque for next cycle's continuity
+  last_tau_ = tau;
+  last_tau_valid_ = true;
+
+  state_cycles_++;
 
   return tau;
 }
@@ -579,10 +836,9 @@ void PegInHoleFSM::setQInit(const tum_ics_ur_robot_lli::JointState& qinit)
 {
   q_init_ = qinit;
 
-  // Propagate to sub-controllers
+  // Propagate to sub-controllers (only joint_ctrl_ and cartesian_ctrl_)
   joint_ctrl_.setQInit(qinit);
   cartesian_ctrl_.setQInit(qinit);
-  insertion_ctrl_.setQInit(qinit);
 
   ROS_INFO_STREAM("PegInHoleFSM::setQInit() - stored and propagated to sub-controllers");
 }
@@ -591,10 +847,9 @@ void PegInHoleFSM::setQHome(const tum_ics_ur_robot_lli::JointState& qhome)
 {
   q_home_stored_ = qhome;
 
-  // Propagate to sub-controllers
+  // Propagate to sub-controllers (only joint_ctrl_ and cartesian_ctrl_)
   joint_ctrl_.setQHome(qhome);
   cartesian_ctrl_.setQHome(qhome);
-  insertion_ctrl_.setQHome(qhome);
 
   // Use YAML q_safe if provided; otherwise fall back to robot qhome
   if (!has_q_safe_param_)
@@ -609,10 +864,9 @@ void PegInHoleFSM::setQPark(const tum_ics_ur_robot_lli::JointState& qpark)
 {
   q_park_ = qpark;
 
-  // Propagate to sub-controllers
+  // Propagate to sub-controllers (only joint_ctrl_ and cartesian_ctrl_)
   joint_ctrl_.setQPark(qpark);
   cartesian_ctrl_.setQPark(qpark);
-  insertion_ctrl_.setQPark(qpark);
 
   ROS_INFO_STREAM("PegInHoleFSM::setQPark() - stored and propagated to sub-controllers");
 }

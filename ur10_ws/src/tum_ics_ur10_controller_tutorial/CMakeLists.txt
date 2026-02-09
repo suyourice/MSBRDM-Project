@@ -86,8 +86,8 @@ add_library(my_robot_control_lli
    src/joint/joint_pd_controller.cpp
    src/cartesian/cartesian_error.cpp
    src/cartesian/cartesian_pdg_controller.cpp
-   src/cartesian/admittance_controller.cpp
-   src/cartesian/hybrid_insertion_controller.cpp
+   # src/cartesian/admittance_controller.cpp  # integrated into cartesian_pdg_controller
+   # src/cartesian/hybrid_insertion_controller.cpp  # functionality in cartesian_pdg + FSM
    src/gripper/lacquey_gripper_controller.cpp
    src/sensors/ft_sensor_interface.cpp
    src/fsm/peg_in_hole_fsm.cpp

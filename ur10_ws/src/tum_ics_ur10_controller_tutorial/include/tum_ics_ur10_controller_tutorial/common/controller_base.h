@@ -41,6 +41,13 @@ public:
 
   virtual ~ControllerBase() = default;
 
+  // Optional FSM lifecycle hooks (no-op by default)
+  virtual void onEnterState(const tum_ics_ur_robot_lli::RobotTime&,
+                            const tum_ics_ur_robot_lli::JointState&)
+  {}
+
+  virtual void onExitState() {}
+
   // Public wrappers for FSM to call protected methods
   bool callInit() { return init(); }
   bool callStart() { return start(); }

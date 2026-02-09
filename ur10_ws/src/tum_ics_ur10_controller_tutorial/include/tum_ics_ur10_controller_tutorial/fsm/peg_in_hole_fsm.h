@@ -3,10 +3,12 @@
 #include <tum_ics_ur10_controller_tutorial/common/controller_base.h>
 #include <tum_ics_ur10_controller_tutorial/joint/joint_pd_controller.h>
 #include <tum_ics_ur10_controller_tutorial/cartesian/cartesian_pdg_controller.h>
-#include <tum_ics_ur10_controller_tutorial/cartesian/hybrid_insertion_controller.h>
 #include <tum_ics_ur10_controller_tutorial/gripper/lacquey_gripper_controller.h>
 #include <ros/ros.h>
 #include <Eigen/Dense>
+
+// Removed: #include <tum_ics_ur10_controller_tutorial/cartesian/hybrid_insertion_controller.h>
+// Reason: CIRCULAR_INSERTION now handled by cartesian_pdg_controller + FSM trajectory
 
 namespace tum_ics_ur10_controller_tutorial
 {
@@ -33,6 +35,7 @@ public:
     INIT,                 // Initialize controllers
     MOVE_TO_SAFE,         // Move to safe position (joint control with interpolation)
     OPEN_GRIPPER,         // Open gripper
+    HOLD_CARTESIAN,       // Hold current pose before switching to Cartesian motion
     MOVE_TO_PEG,          // Approach peg location (Cartesian)
     DESCEND_TO_PEG,       // Descend to grasp height
     CLOSE_GRIPPER,        // Grasp peg
@@ -73,19 +76,35 @@ protected:
 
 private:
   // State transition logic
-  void transitionTo(State new_state);
-  bool checkStateComplete();
+  void switchState(State new_state,
+                   const tum_ics_ur_robot_lli::RobotTime& time,
+                   const tum_ics_ur_robot_lli::JointState& state);
+  bool checkStateComplete(const tum_ics_ur_robot_lli::RobotTime& time);
+  void applyStateTargets(const tum_ics_ur_robot_lli::JointState& state);
 
   // Sub-controllers
+  // CRITICAL: Only TWO controllers for entire task!
+  // - joint_ctrl_: Used only for INIT + MOVE_TO_SAFE + OPEN_GRIPPER
+  // - cartesian_ctrl_: Used from HOLD_CARTESIAN until DONE (single instance!)
   JointPDController joint_ctrl_;
   CartesianPDGController cartesian_ctrl_;
-  HybridInsertionController insertion_ctrl_;
   LacqueyGripperController gripper_;
+
+  // Removed: HybridInsertionController insertion_ctrl_;
+  // Reason: CIRCULAR_INSERTION now handled by cartesian_ctrl_ + FSM trajectory generation
 
   // Current state
   State state_;
+  State pending_transition_;
+  bool has_pending_transition_;
+  int state_cycles_;
+  bool target_pending_;
   tum_ics_ur_robot_lli::RobotTime state_start_time_;
   tum_ics_ur_robot_lli::RobotTime last_time_;
+
+  // Torque continuity (hold during transitions)
+  Eigen::VectorXd last_tau_;
+  bool last_tau_valid_;
 
   // Stored robot configurations
   tum_ics_ur_robot_lli::JointState q_init_;
@@ -94,6 +113,9 @@ private:
 
   // State timeouts
   std::map<State, double> state_timeouts_;
+  double min_dwell_joint_to_cartesian_;
+  double min_dwell_cartesian_;
+  double hold_cartesian_time_;
 
   // Waypoints (from config)
   Eigen::VectorXd q_safe_;          // User-defined safe position
@@ -110,6 +132,15 @@ private:
   // Retry logic
   int retry_count_;
   int max_retries_;
+
+  // Circular insertion trajectory generation (FSM-managed)
+  Eigen::Vector3d insertion_start_pos_;  // Starting position for insertion
+  double insertion_radius_;              // Circular search radius (m)
+  double insertion_omega_;               // Angular velocity (rad/s)
+  double insertion_v_descent_;           // Descent velocity (m/s)
+  double insertion_target_depth_;        // Target insertion depth (m)
+  double insertion_start_time_;          // Time when insertion started
+  bool insertion_success_;               // Success flag
 
   // ROS
   ros::NodeHandle nh_;
